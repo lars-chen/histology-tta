@@ -100,6 +100,8 @@ def run_tta_eval(model, dataset, tta_transforms, aggregation, device, batch_size
         "n_correct": n_correct,
         "n_wrong": n_wrong,
         "n_total": n_total,
+        "preds": preds,
+        "labels": labels,
     }
 
 
@@ -123,10 +125,16 @@ def main():
     print(f"Loaded checkpoint from epoch {ckpt['epoch']} (val_acc={ckpt['val_acc']:.4f})")
 
     # --- Evaluate all strategies ---
-    print(f"\n{'='*90}")
-    print(f"{'Strategy':<20} {'Agg':<12} {'Acc':>8} {'BalAcc':>10} {'Correct':>9} {'Wrong':>7} {'Total':>8} {'Views':>7}")
-    print(f"{'='*90}")
+    W = 115
+    print(f"\n{'='*W}")
+    print(
+        f"{'Strategy':<20} {'Agg':<12} {'Acc':>8} {'BalAcc':>10} "
+        f"{'Correct':>9} {'Wrong':>7} {'Total':>8} {'Views':>7} "
+        f"{'Corrected':>11} {'Corrupted':>11}"
+    )
+    print(f"{'='*W}")
 
+    baseline_preds = None  # predictions from strategy="none"
     results = []
     for strategy in args.tta_strategies:
         tta_transforms = get_tta_transforms(strategy)
@@ -143,6 +151,21 @@ def main():
                 num_workers=args.num_workers,
             )
             n_views = len(tta_transforms)
+
+            # Compare to the no-TTA baseline
+            if strategy == "none":
+                baseline_preds = metrics["preds"]
+                n_corrected = n_corrupted = None
+            elif baseline_preds is not None:
+                labels_arr = metrics["labels"]
+                tta_preds   = metrics["preds"]
+                baseline_wrong = baseline_preds != labels_arr
+                baseline_right = ~baseline_wrong
+                n_corrected = int((baseline_wrong & (tta_preds == labels_arr)).sum())
+                n_corrupted = int((baseline_right & (tta_preds != labels_arr)).sum())
+            else:
+                n_corrected = n_corrupted = None
+
             row = {
                 "strategy": strategy,
                 "aggregation": agg,
@@ -152,15 +175,21 @@ def main():
                 "n_wrong": metrics["n_wrong"],
                 "n_total": metrics["n_total"],
                 "n_views": n_views,
+                "n_corrected": n_corrected,
+                "n_corrupted": n_corrupted,
             }
             results.append(row)
+
+            corrected_str = f"{n_corrected:>11,}" if n_corrected is not None else f"{'—':>11}"
+            corrupted_str = f"{n_corrupted:>11,}" if n_corrupted is not None else f"{'—':>11}"
             print(
                 f"{strategy:<20} {agg:<12} {metrics['acc']:>8.4f} "
                 f"{metrics['balanced_acc']:>10.4f} {metrics['n_correct']:>9,} "
-                f"{metrics['n_wrong']:>7,} {metrics['n_total']:>8,} {n_views:>7}"
+                f"{metrics['n_wrong']:>7,} {metrics['n_total']:>8,} {n_views:>7} "
+                f"{corrected_str} {corrupted_str}"
             )
 
-    print(f"{'='*90}")
+    print(f"{'='*W}")
 
     # Find best
     best = max(results, key=lambda r: r["balanced_acc"])
@@ -169,11 +198,13 @@ def main():
         f"balanced_acc={best['balanced_acc']:.4f}"
     )
 
-    # Save results
+    # Save results (drop non-serialisable numpy arrays)
     import json
+    _SKIP = {"preds", "labels"}
+    serialisable = [{k: v for k, v in r.items() if k not in _SKIP} for r in results]
     out_path = f"tta_results_{args.model}.json"
     with open(out_path, "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(serialisable, f, indent=2)
     print(f"Results saved to {out_path}")
 
 

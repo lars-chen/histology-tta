@@ -1,15 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=histo_dinov2_s
+#SBATCH --job-name=histo_dinov2_g
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
 #SBATCH --partition=gpu4_medium
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=64G
-#SBATCH --time=09:00:00
+#SBATCH --mem=128G
+#SBATCH --time=9:00:00
 
 # ---------------------------------------------------------------------------
-# Train DINOv2-Small (frozen backbone / linear probe) on all available
+# Train DINOv2-Giant (frozen backbone / linear probe) on all available
 # datasets, then run TTA evaluation on datasets with a dedicated test split.
 #
 # DINOv2 weights are downloaded from facebookresearch/dinov2 on first run.
@@ -22,8 +22,8 @@ CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 
-MODEL=dinov2_s
-BATCH_SIZE=32
+MODEL=dinov2_g
+BATCH_SIZE=8
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-7k nct-crc-nonorm)
 
@@ -46,7 +46,7 @@ for DATASET in "${DATASETS[@]}"; do
         --epochs "$EPOCHS" \
         --batch_size "$BATCH_SIZE" \
         --freeze_backbone \
-        --patience 1 \
+        --patience 2 \
         --num_workers 0 \
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"

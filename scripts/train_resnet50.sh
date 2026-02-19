@@ -43,7 +43,7 @@ for DATASET in "${DATASETS[@]}"; do
         --epochs "$EPOCHS" \
         --batch_size "$BATCH_SIZE" \
         --freeze_backbone \
-        --patience 1 \
+        --patience 2 \
         --num_workers 0 \
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"
