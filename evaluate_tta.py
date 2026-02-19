@@ -90,9 +90,16 @@ def run_tta_eval(model, dataset, tta_transforms, aggregation, device, batch_size
     preds = all_probs.argmax(dim=1).numpy()
     labels = all_labels.numpy()
 
+    n_total = len(labels)
+    n_correct = int((preds == labels).sum())
+    n_wrong = n_total - n_correct
+
     return {
         "acc": accuracy_score(labels, preds),
         "balanced_acc": balanced_accuracy_score(labels, preds),
+        "n_correct": n_correct,
+        "n_wrong": n_wrong,
+        "n_total": n_total,
     }
 
 
@@ -116,9 +123,9 @@ def main():
     print(f"Loaded checkpoint from epoch {ckpt['epoch']} (val_acc={ckpt['val_acc']:.4f})")
 
     # --- Evaluate all strategies ---
-    print(f"\n{'='*70}")
-    print(f"{'Strategy':<20} {'Agg':<12} {'Acc':>8} {'BalAcc':>10} {'# Views':>8}")
-    print(f"{'='*70}")
+    print(f"\n{'='*90}")
+    print(f"{'Strategy':<20} {'Agg':<12} {'Acc':>8} {'BalAcc':>10} {'Correct':>9} {'Wrong':>7} {'Total':>8} {'Views':>7}")
+    print(f"{'='*90}")
 
     results = []
     for strategy in args.tta_strategies:
@@ -141,15 +148,19 @@ def main():
                 "aggregation": agg,
                 "acc": metrics["acc"],
                 "balanced_acc": metrics["balanced_acc"],
+                "n_correct": metrics["n_correct"],
+                "n_wrong": metrics["n_wrong"],
+                "n_total": metrics["n_total"],
                 "n_views": n_views,
             }
             results.append(row)
             print(
                 f"{strategy:<20} {agg:<12} {metrics['acc']:>8.4f} "
-                f"{metrics['balanced_acc']:>10.4f} {n_views:>8}"
+                f"{metrics['balanced_acc']:>10.4f} {metrics['n_correct']:>9,} "
+                f"{metrics['n_wrong']:>7,} {metrics['n_total']:>8,} {n_views:>7}"
             )
 
-    print(f"{'='*70}")
+    print(f"{'='*90}")
 
     # Find best
     best = max(results, key=lambda r: r["balanced_acc"])

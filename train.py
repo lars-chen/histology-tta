@@ -78,8 +78,9 @@ def main():
         cache_dir=args.cache_dir,
     )
 
-    # Checkpoint name includes both dataset and model
-    ckpt_name = f"{args.dataset}_{args.model}"
+    # Checkpoint name: dataset + model + backbone mode
+    backbone_mode = "frozen" if args.freeze_backbone else "finetuned"
+    ckpt_name = f"{args.dataset}_{args.model}_{backbone_mode}"
 
     # --- Model ---
     model = get_model(
@@ -109,7 +110,7 @@ def main():
             device=device,
             scheduler=scheduler,
             checkpoint_dir=args.checkpoint_dir,
-            model_name=f"{ckpt_name}_stage1",
+            model_name=f"{args.dataset}_{args.model}_frozen_stage1",
             label_smoothing=args.label_smoothing,
             patience=args.patience,
         )
@@ -131,7 +132,7 @@ def main():
             device=device,
             scheduler=scheduler,
             checkpoint_dir=args.checkpoint_dir,
-            model_name=ckpt_name,
+            model_name=f"{args.dataset}_{args.model}_finetuned",
             label_smoothing=args.label_smoothing,
             patience=args.patience,
         )
