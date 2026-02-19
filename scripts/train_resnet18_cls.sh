@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=histo_dinov2_l
+#SBATCH --job-name=histo_resnet18_cls
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
 #SBATCH --partition=gpu4_medium
@@ -9,11 +9,8 @@
 #SBATCH --time=9:00:00
 
 # ---------------------------------------------------------------------------
-# Train DINOv2-Large (frozen backbone / linear probe) on all available
-# datasets, then run TTA evaluation on datasets with a dedicated test split.
-#
-# DINOv2 weights are downloaded from facebookresearch/dinov2 on first run.
-# Set TORCH_HUB_DIR if you want to cache them somewhere specific.
+# Train ResNet-18 (frozen backbone / linear probe) on all available datasets,
+# then run TTA evaluation on datasets that have a dedicated test split.
 # ---------------------------------------------------------------------------
 
 PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
@@ -22,10 +19,13 @@ CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 
-MODEL=dinov2_l
-BATCH_SIZE=16
+MODEL=resnet18
+BATCH_SIZE=64
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-7k nct-crc-nonorm)
+
+# nct-crc-7k is the 7k held-out validation subset of NCT-CRC-HE-100K;
+# it is small but included here for completeness.
 
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
 cd "$PROJECT" || exit 1
@@ -51,6 +51,7 @@ for DATASET in "${DATASETS[@]}"; do
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"
 
+    # Only tcga-ut has a dedicated test split for TTA evaluation
     if [ "$DATASET" = "tcga-ut" ]; then
         CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_best.pt"
         echo ""

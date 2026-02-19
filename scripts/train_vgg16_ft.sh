@@ -1,16 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=histo_resnet18
+#SBATCH --job-name=histo_vgg16_ft
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
 #SBATCH --partition=gpu4_medium
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=9:00:00
 
 # ---------------------------------------------------------------------------
-# Train ResNet-18 (frozen backbone / linear probe) on all available datasets,
-# then run TTA evaluation on datasets that have a dedicated test split.
+# Full fine-tuning of VGG-16 on all available datasets, then TTA eval.
 # ---------------------------------------------------------------------------
 
 PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
@@ -19,20 +18,17 @@ CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 
-MODEL=resnet18
-BATCH_SIZE=64
+MODEL=vgg16
+BATCH_SIZE=32
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-7k nct-crc-nonorm)
-
-# nct-crc-7k is the 7k held-out validation subset of NCT-CRC-HE-100K;
-# it is small but included here for completeness.
 
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
 cd "$PROJECT" || exit 1
 
 echo "========================================"
 echo "Job: $SLURM_JOB_ID  Node: $SLURMD_NODENAME"
-echo "Model: $MODEL  | Batch: $BATCH_SIZE  | Epochs: $EPOCHS"
+echo "Model: $MODEL (fine-tune)  | Batch: $BATCH_SIZE  | Epochs: $EPOCHS"
 echo "Started: $(date)"
 echo "========================================"
 
@@ -45,15 +41,15 @@ for DATASET in "${DATASETS[@]}"; do
         --dataset "$DATASET" \
         --epochs "$EPOCHS" \
         --batch_size "$BATCH_SIZE" \
-        --freeze_backbone \
-        --patience 1 \
-        --num_workers 0 \
+        --lr 1e-5 \
+        --patience 2 \
+        --num_workers 2 \
+        --amp \
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"
 
-    # Only tcga-ut has a dedicated test split for TTA evaluation
     if [ "$DATASET" = "tcga-ut" ]; then
-        CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_best.pt"
+        CKPT="$CKPT_DIR/${DATASET}_${MODEL}_finetuned_best.pt"
         echo ""
         echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
         $PYTHON evaluate_tta.py \
