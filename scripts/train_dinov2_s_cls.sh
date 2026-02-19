@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=histo_vgg16
+#SBATCH --job-name=histo_dinov2_s_cls
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
 #SBATCH --partition=gpu4_medium
@@ -9,8 +9,11 @@
 #SBATCH --time=9:00:00
 
 # ---------------------------------------------------------------------------
-# Train VGG-16 (frozen backbone / linear probe) on all available datasets,
-# then run TTA evaluation on datasets with a dedicated test split.
+# Train DINOv2-Small (frozen backbone / linear probe) on all available
+# datasets, then run TTA evaluation on datasets with a dedicated test split.
+#
+# DINOv2 weights are downloaded from facebookresearch/dinov2 on first run.
+# Set TORCH_HUB_DIR if you want to cache them somewhere specific.
 # ---------------------------------------------------------------------------
 
 PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
@@ -19,7 +22,7 @@ CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 
-MODEL=vgg16
+MODEL=dinov2_s
 BATCH_SIZE=32
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-7k nct-crc-nonorm)
