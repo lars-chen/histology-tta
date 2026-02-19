@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=histo_resnet50
+#SBATCH --job-name=histo_vgg16
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
 #SBATCH --partition=gpu4_medium
@@ -9,8 +9,8 @@
 #SBATCH --time=9:00:00
 
 # ---------------------------------------------------------------------------
-# Train ResNet-50 (frozen backbone / linear probe) on all available datasets,
-# then run TTA evaluation on datasets that have a dedicated test split.
+# Train VGG-16 (frozen backbone / linear probe) on all available datasets,
+# then run TTA evaluation on datasets with a dedicated test split.
 # ---------------------------------------------------------------------------
 
 PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
@@ -19,8 +19,8 @@ CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 
-MODEL=resnet50
-BATCH_SIZE=64
+MODEL=vgg16
+BATCH_SIZE=32
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-7k nct-crc-nonorm)
 
