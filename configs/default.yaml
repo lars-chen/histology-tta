@@ -1,0 +1,60 @@
+# Default training configuration
+# Override via CLI args in train.py
+
+model: resnet18
+num_classes: null          # inferred from dataset
+
+data:
+  dataset: tcga-ut         # "tcga-ut" or path to local folder
+  cache_dir: null          # HuggingFace cache dir (null = default)
+  val_fraction: 0.10
+  batch_size: 32
+  num_workers: 4
+  image_size: 224          # crop size fed to model
+
+training:
+  epochs: 20
+  freeze_backbone: false
+  unfreeze_after: null     # epochs before unfreezing (two-stage training)
+  label_smoothing: 0.10
+
+optimizer:
+  type: adamw
+  backbone_lr: 1.0e-4
+  head_lr: 1.0e-3
+  weight_decay: 1.0e-4
+
+scheduler:
+  type: cosine
+  warmup_epochs: 2
+
+head:
+  dropout: 0.20
+
+tta:
+  strategy: d4             # none | flips | d4 | d4_color | multiscale | full
+  aggregation: mean        # mean | max | vote | confidence
+
+checkpoints:
+  dir: checkpoints
+  save_every: null         # null = only save best
+
+# Quick-start presets (reference):
+#
+# Linear probe (5min on GPU):
+#   model: dinov2_b
+#   training.freeze_backbone: true
+#   training.epochs: 5
+#   optimizer.head_lr: 1e-3
+#
+# Fine-tune ResNet-50 (30min on GPU):
+#   model: resnet50
+#   training.epochs: 20
+#   optimizer.backbone_lr: 5e-5
+#   optimizer.head_lr: 5e-4
+#
+# Two-stage EfficientNet-B7:
+#   model: efficientnet_b7
+#   training.freeze_backbone: true
+#   training.unfreeze_after: 5
+#   training.epochs: 25

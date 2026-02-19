@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""
+TTA evaluation entry point.
+
+Loads a trained checkpoint and evaluates with multiple TTA strategies,
+producing a comparison table.
+
+Usage:
+    python evaluate_tta.py \
+        --model resnet50 \
+        --checkpoint checkpoints/resnet50_best.pt \
+        --num_classes 33 \
+        --tta_strategies none flips d4 d4_color full \
+        --aggregations mean vote confidence
+"""
+
+import argparse
+import torch
+import torch.nn.functional as F
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
+
+from models import get_model
+from data.dataset import TCGAUTDataset
+from data.transforms import get_tta_transforms, get_val_transform
+from tta.aggregator import aggregate_predictions
+from torch.utils.data import DataLoader
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="TTA evaluation")
+    parser.add_argument("--model", type=str, required=True)
+    parser.add_argument("--checkpoint", type=str, required=True)
+    parser.add_argument("--num_classes", type=int, default=None,
+                        help="If None, inferred from dataset")
+    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--cache_dir", type=str, default=None)
+    parser.add_argument(
+        "--tta_strategies", nargs="+",
+        default=["none", "flips", "d4", "d4_color"],
+        help="TTA strategies to evaluate"
+    )
+    parser.add_argument(
+        "--aggregations", nargs="+",
+        default=["mean", "vote", "confidence"],
+        help="Aggregation strategies"
+    )
+    return parser.parse_args()
+
+
+@torch.no_grad()
+def run_tta_eval(model, dataset, tta_transforms, aggregation, device, batch_size, num_workers):
+    """Run TTA over the full dataset and return accuracy metrics."""
+    model.eval()
+
+    # We need raw PIL images — disable the dataset's tensor transform temporarily
+    orig_transform = dataset.transform
+
+    all_probs = []
+    all_labels = []
+    val_transform = get_val_transform()
+
+    def _collate_pil(batch):
+        imgs, labels = zip(*batch)
+        return list(imgs), torch.tensor(labels)
+
+    dataset.transform = None  # return raw PIL images
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+        collate_fn=_collate_pil,
+    )
+
+    for images, labels in loader:
+        # images is a list of PIL images when transform=None
+        logits_list = []
+        for tta_tf in tta_transforms:
+            batch = torch.stack([tta_tf(img) for img in images]).to(device)
+            logits_list.append(model(batch))
+        probs = aggregate_predictions(logits_list, aggregation)
+        all_probs.append(probs.cpu())
+        all_labels.append(labels)
+
+    dataset.transform = orig_transform
+
+    all_probs = torch.cat(all_probs)
+    all_labels = torch.cat(all_labels)
+    preds = all_probs.argmax(dim=1).numpy()
+    labels = all_labels.numpy()
+
+    return {
+        "acc": accuracy_score(labels, preds),
+        "balanced_acc": balanced_accuracy_score(labels, preds),
+    }
+
+
+def main():
+    args = parse_args()
+    device = (
+        "cuda" if torch.cuda.is_available()
+        else "mps" if torch.backends.mps.is_available()
+        else "cpu"
+    )
+    print(f"Device: {device}")
+
+    # Load test dataset
+    test_set = TCGAUTDataset(split="test", transform=None, cache_dir=args.cache_dir)
+    num_classes = args.num_classes or test_set.num_classes
+
+    # Load model
+    model = get_model(args.model, num_classes=num_classes).to(device)
+    ckpt = torch.load(args.checkpoint, map_location=device)
+    model.load_state_dict(ckpt["model_state_dict"])
+    print(f"Loaded checkpoint from epoch {ckpt['epoch']} (val_acc={ckpt['val_acc']:.4f})")
+
+    # --- Evaluate all strategies ---
+    print(f"\n{'='*70}")
+    print(f"{'Strategy':<20} {'Agg':<12} {'Acc':>8} {'BalAcc':>10} {'# Views':>8}")
+    print(f"{'='*70}")
+
+    results = []
+    for strategy in args.tta_strategies:
+        tta_transforms = get_tta_transforms(strategy)
+        for agg in args.aggregations:
+            if strategy == "none" and agg != "mean":
+                continue  # no point aggregating a single view
+            metrics = run_tta_eval(
+                model=model,
+                dataset=test_set,
+                tta_transforms=tta_transforms,
+                aggregation=agg,
+                device=device,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+            )
+            n_views = len(tta_transforms)
+            row = {
+                "strategy": strategy,
+                "aggregation": agg,
+                "acc": metrics["acc"],
+                "balanced_acc": metrics["balanced_acc"],
+                "n_views": n_views,
+            }
+            results.append(row)
+            print(
+                f"{strategy:<20} {agg:<12} {metrics['acc']:>8.4f} "
+                f"{metrics['balanced_acc']:>10.4f} {n_views:>8}"
+            )
+
+    print(f"{'='*70}")
+
+    # Find best
+    best = max(results, key=lambda r: r["balanced_acc"])
+    print(
+        f"\nBest: strategy='{best['strategy']}' agg='{best['aggregation']}' "
+        f"balanced_acc={best['balanced_acc']:.4f}"
+    )
+
+    # Save results
+    import json
+    out_path = f"tta_results_{args.model}.json"
+    with open(out_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Results saved to {out_path}")
+
+
+if __name__ == "__main__":
+    main()
