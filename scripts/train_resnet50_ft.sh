@@ -21,7 +21,7 @@ CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 MODEL=resnet50
 BATCH_SIZE=64
 EPOCHS=20
-DATASETS=(tcga-ut nct-crc-100k nct-crc-7k nct-crc-nonorm)
+DATASETS=(tcga-ut nct-crc-100k nct-crc-nonorm)
 
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
 cd "$PROJECT" || exit 1
@@ -47,18 +47,17 @@ for DATASET in "${DATASETS[@]}"; do
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"
 
-    if [ "$DATASET" = "tcga-ut" ]; then
-        CKPT="$CKPT_DIR/${DATASET}_${MODEL}_finetuned_best.pt"
-        echo ""
-        echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
-        $PYTHON evaluate_tta.py \
-            --model "$MODEL" \
-            --checkpoint "$CKPT" \
-            --tta_strategies none flips d4 d4_color \
-            --aggregations mean vote confidence \
-            --batch_size "$BATCH_SIZE" \
-            --cache_dir "$CACHE_DIR"
-    fi
+    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_finetuned_best.pt"
+    echo ""
+    echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
+    $PYTHON evaluate_tta.py \
+        --model "$MODEL" \
+        --checkpoint "$CKPT" \
+        --dataset "$DATASET" \
+        --tta_strategies none flips d4 d4_color \
+        --aggregations mean vote confidence \
+        --batch_size "$BATCH_SIZE" \
+        --cache_dir "$CACHE_DIR"
 done
 
 echo ""
