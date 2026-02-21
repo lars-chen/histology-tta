@@ -20,6 +20,8 @@ To add a dataset, add one entry to DATASETS below.
 """
 
 import io
+import random
+from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -30,12 +32,16 @@ from datasets import load_dataset
 
 
 # Registry: name → (hf_repo, hf_subset, hf_train_split, hf_test_split,
-#                    image_col, label_col, classes)
+#                    image_col, label_col, classes, patient_col)
 #
-# image_col  : HF column name for the image
-# label_col  : HF column name for the label; use "outer.inner" for nested dicts
-# classes    : list of class names when labels are strings, or None to detect
-#              from a ClassLabel feature automatically
+# image_col   : HF column name for the image
+# label_col   : HF column name for the label; use "outer.inner" for nested dicts
+# classes     : list of class names when labels are strings, or None to detect
+#               from a ClassLabel feature automatically
+# patient_col : HF column whose value encodes a patient/slide ID, used for
+#               patient-level val splitting to avoid slide-leakage.
+#               None → fall back to random patch-level splitting.
+#               "__key__" → TCGA webdataset key (parsed as TCGA-XX-XXXX/...)
 _TCGA_UT_CLASSES = [
     "Adrenocortical_carcinoma",
     "Bladder_Urothelial_Carcinoma",
@@ -71,11 +77,10 @@ _TCGA_UT_CLASSES = [
 ]
 
 DATASETS = {
-    #                  repo                   subset                     train   test    img_col  lbl_col       classes
-    "tcga-ut":        ("dakomura/tcga-ut",    None,                      "train","test", "jpg",   "json.label", _TCGA_UT_CLASSES),
-    "nct-crc-100k":   ("1aurent/NCT-CRC-HE", "NCT_CRC_HE_100K",         "train", None, "image", "label",      None),
-    "nct-crc-7k":     ("1aurent/NCT-CRC-HE", "CRC_VAL_HE_7K",           "train", None, "image", "label",      None),
-    "nct-crc-nonorm": ("1aurent/NCT-CRC-HE", "NCT_CRC_HE_100K_NONORM",  "train", None, "image", "label",      None),
+    #                  repo                   subset  train_split               test             img_col  lbl_col       classes               patient_col
+    "tcga-ut":        ("dakomura/tcga-ut",    None,   "train",                 "test",          "jpg",   "json.label", _TCGA_UT_CLASSES,     "__key__"),
+    "nct-crc-100k":   ("1aurent/NCT-CRC-HE", None,   "NCT_CRC_HE_100K",       "CRC_VAL_HE_7K", "image", "label",      None,                 None),
+    "nct-crc-nonorm": ("1aurent/NCT-CRC-HE", None,   "NCT_CRC_HE_100K_NONORM","CRC_VAL_HE_7K", "image", "label",      None,                 None),
 }
 
 
@@ -121,7 +126,7 @@ class HistoDataset(Dataset):
         cache_dir: Optional[str] = None,
     ):
         assert name in DATASETS, f"Unknown dataset '{name}'. Choose from: {list(DATASETS)}"
-        repo, subset, train_split, test_split, image_col, label_col, predefined_classes = DATASETS[name]
+        repo, subset, train_split, test_split, image_col, label_col, predefined_classes, *_ = DATASETS[name]
 
         hf_split = train_split if split == "train" else test_split
         assert hf_split is not None, f"'{name}' has no '{split}' split."
@@ -130,8 +135,9 @@ class HistoDataset(Dataset):
         self.streaming = streaming
         self._image_col = image_col
         self._label_col = label_col
-        self._hf = load_dataset(repo, name=subset, split=hf_split,
-                                streaming=streaming, cache_dir=cache_dir)
+        load_kw = {} if subset is None else {"name": subset}
+        self._hf = load_dataset(repo, split=hf_split,
+                                streaming=streaming, cache_dir=cache_dir, **load_kw)
 
         # Build class list
         if predefined_classes is not None:
@@ -181,6 +187,67 @@ class HistoDataset(Dataset):
         return len(self.classes)
 
 
+def _patient_id_from_tcga_key(key: str) -> str:
+    """
+    Extract a TCGA patient barcode from a webdataset __key__ field.
+
+    Example key:  "TCGA-FS-A1Z7-06Z-00-DX7/0_8_521"
+    Slide ID:     "TCGA-FS-A1Z7-06Z-00-DX7"   (part before '/')
+    Patient ID:   "TCGA-FS-A1Z7"               (first 3 hyphen-fields)
+    """
+    slide_id = key.split("/")[0]
+    return "-".join(slide_id.split("-")[:3])
+
+
+def _patient_level_split(hf_dataset, patient_col: str, val_fraction: float, seed: int = 42):
+    """
+    Split dataset indices by patient rather than by patch.
+
+    Reads only the patient_col (no image decoding), groups patch indices by
+    patient ID, then assigns whole patients to train or val.  This prevents
+    patches from the same patient appearing in both splits (slide-leakage).
+
+    Args:
+        hf_dataset   : HuggingFace Dataset (non-streaming, arrow-backed)
+        patient_col  : column name containing patient/slide info
+        val_fraction : fraction of *patients* (not patches) to hold out
+        seed         : shuffle seed for reproducibility
+
+    Returns:
+        (train_indices, val_indices)  — lists of integer patch indices
+    """
+    print(f"  Building patient-level val split from '{patient_col}' column...", flush=True)
+
+    # Arrow-backed column access — fast, no image decoding
+    keys = hf_dataset[patient_col]
+
+    patient_to_indices: dict = defaultdict(list)
+    for idx, key in enumerate(keys):
+        pid = _patient_id_from_tcga_key(key)
+        patient_to_indices[pid].append(idx)
+
+    patients = sorted(patient_to_indices.keys())
+    rng = random.Random(seed)
+    rng.shuffle(patients)
+
+    n_val_patients = max(1, int(len(patients) * val_fraction))
+    val_patients = set(patients[:n_val_patients])
+
+    train_indices, val_indices = [], []
+    for pid, indices in patient_to_indices.items():
+        if pid in val_patients:
+            val_indices.extend(indices)
+        else:
+            train_indices.extend(indices)
+
+    print(
+        f"  Patient-level split: "
+        f"{len(patients) - n_val_patients} train patients ({len(train_indices):,} patches) / "
+        f"{n_val_patients} val patients ({len(val_indices):,} patches)"
+    )
+    return train_indices, val_indices
+
+
 def get_dataloaders(
     name: str,
     train_transform: Callable,
@@ -193,22 +260,32 @@ def get_dataloaders(
     """
     Returns (train_loader, val_loader, test_loader, num_classes).
 
-    Val set is carved from the training split via random_split.
-    test_loader is None if the dataset has no dedicated test split.
+    Val set is carved from the training split.  When the dataset registry
+    specifies a patient_col, splitting is done at the patient level to avoid
+    slide-leakage (patches from the same patient in both train and val).
+    Otherwise falls back to random patch-level splitting.
     """
     train_ds = HistoDataset(name, split="train", transform=train_transform, cache_dir=cache_dir)
     num_classes = train_ds.num_classes
 
-    n_val = int(len(train_ds) * val_fraction)
-    train_set, val_set = random_split(
-        train_ds, [len(train_ds) - n_val, n_val],
-        generator=torch.Generator().manual_seed(42),
-    )
-    # Give val its own transform (val_set.dataset is the same object,
-    # so we wrap it to swap out the transform cleanly)
-    val_set = _TransformSubset(train_ds, val_set.indices, val_transform)
+    *_, patient_col = DATASETS[name]
 
-    _, _, train_split, test_split, *_ = DATASETS[name]
+    if patient_col is not None:
+        train_indices, val_indices = _patient_level_split(
+            train_ds._hf, patient_col, val_fraction
+        )
+        train_set = _TransformSubset(train_ds, train_indices, train_transform)
+        val_set   = _TransformSubset(train_ds, val_indices,   val_transform)
+    else:
+        n_val = int(len(train_ds) * val_fraction)
+        _train, _val = random_split(
+            train_ds, [len(train_ds) - n_val, n_val],
+            generator=torch.Generator().manual_seed(42),
+        )
+        train_set = _TransformSubset(train_ds, list(_train.indices), train_transform)
+        val_set   = _TransformSubset(train_ds, list(_val.indices),   val_transform)
+
+    _, _, _, test_split, *_ = DATASETS[name]
     test_loader = None
     if test_split is not None:
         test_ds = HistoDataset(name, split="test", transform=val_transform, cache_dir=cache_dir)

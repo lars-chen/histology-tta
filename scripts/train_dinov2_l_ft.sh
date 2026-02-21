@@ -5,8 +5,8 @@
 #SBATCH --partition=gpu4_medium
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=64G
-#SBATCH --time=9:00:00
+#SBATCH --mem=128G
+#SBATCH --time=1-12:00:00
 
 # ---------------------------------------------------------------------------
 # Full fine-tuning of DINOv2-Large (ViT-L/14, 307M params) on all available
@@ -25,7 +25,7 @@ CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 MODEL=dinov2_l
 BATCH_SIZE=8
 EPOCHS=20
-DATASETS=(tcga-ut nct-crc-100k nct-crc-7k nct-crc-nonorm)
+DATASETS=(tcga-ut nct-crc-100k nct-crc-nonorm)
 
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
 cd "$PROJECT" || exit 1
@@ -52,18 +52,17 @@ for DATASET in "${DATASETS[@]}"; do
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"
 
-    if [ "$DATASET" = "tcga-ut" ]; then
-        CKPT="$CKPT_DIR/${DATASET}_${MODEL}_finetuned_best.pt"
-        echo ""
-        echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
-        $PYTHON evaluate_tta.py \
-            --model "$MODEL" \
-            --checkpoint "$CKPT" \
-            --tta_strategies none flips d4 d4_color \
-            --aggregations mean vote confidence \
-            --batch_size "$BATCH_SIZE" \
-            --cache_dir "$CACHE_DIR"
-    fi
+    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_finetuned_best.pt"
+    echo ""
+    echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
+    $PYTHON evaluate_tta.py \
+        --model "$MODEL" \
+        --checkpoint "$CKPT" \
+        --dataset "$DATASET" \
+        --tta_strategies none flips d4 d4_color \
+        --aggregations mean vote confidence \
+        --batch_size "$BATCH_SIZE" \
+        --cache_dir "$CACHE_DIR"
 done
 
 echo ""

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=histo_dinov2_l_cls
+#SBATCH --job-name=histo_convnextv2_s_ft
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
 #SBATCH --partition=gpu4_medium
@@ -9,11 +9,10 @@
 #SBATCH --time=9:00:00
 
 # ---------------------------------------------------------------------------
-# Train DINOv2-Large (frozen backbone / linear probe) on all available
-# datasets, then run TTA evaluation on datasets with a dedicated test split.
+# Full fine-tuning of ConvNeXt V2-Small (50M params) on all available
+# datasets, then TTA evaluation on datasets with a dedicated test split.
 #
-# DINOv2 weights are downloaded from facebookresearch/dinov2 on first run.
-# Set TORCH_HUB_DIR if you want to cache them somewhere specific.
+# Weights are downloaded from timm (Hugging Face) on first run.
 # ---------------------------------------------------------------------------
 
 PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
@@ -22,8 +21,8 @@ CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 
-MODEL=dinov2_l
-BATCH_SIZE=16
+MODEL=convnextv2_small
+BATCH_SIZE=32
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-nonorm)
 
@@ -32,7 +31,7 @@ cd "$PROJECT" || exit 1
 
 echo "========================================"
 echo "Job: $SLURM_JOB_ID  Node: $SLURMD_NODENAME"
-echo "Model: $MODEL  | Batch: $BATCH_SIZE  | Epochs: $EPOCHS"
+echo "Model: $MODEL (fine-tune)  | Batch: $BATCH_SIZE  | Epochs: $EPOCHS"
 echo "Started: $(date)"
 echo "========================================"
 
@@ -45,14 +44,14 @@ for DATASET in "${DATASETS[@]}"; do
         --dataset "$DATASET" \
         --epochs "$EPOCHS" \
         --batch_size "$BATCH_SIZE" \
-        --freeze_backbone \
+        --lr 5e-5 \
         --patience 2 \
         --num_workers 2 \
         --amp \
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"
 
-    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_best.pt"
+    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_finetuned_best.pt"
     echo ""
     echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
     $PYTHON evaluate_tta.py \

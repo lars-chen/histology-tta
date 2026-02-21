@@ -22,7 +22,7 @@ CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 MODEL=resnet18
 BATCH_SIZE=64
 EPOCHS=20
-DATASETS=(tcga-ut nct-crc-100k nct-crc-7k nct-crc-nonorm)
+DATASETS=(tcga-ut nct-crc-100k nct-crc-nonorm)
 
 # nct-crc-7k is the 7k held-out validation subset of NCT-CRC-HE-100K;
 # it is small but included here for completeness.
@@ -52,18 +52,17 @@ for DATASET in "${DATASETS[@]}"; do
         --checkpoint_dir "$CKPT_DIR"
 
     # Only tcga-ut has a dedicated test split for TTA evaluation
-    if [ "$DATASET" = "tcga-ut" ]; then
-        CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_best.pt"
-        echo ""
-        echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
-        $PYTHON evaluate_tta.py \
-            --model "$MODEL" \
-            --checkpoint "$CKPT" \
-            --tta_strategies none flips d4 d4_color \
-            --aggregations mean vote confidence \
-            --batch_size "$BATCH_SIZE" \
-            --cache_dir "$CACHE_DIR"
-    fi
+    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_best.pt"
+    echo ""
+    echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
+    $PYTHON evaluate_tta.py \
+        --model "$MODEL" \
+        --checkpoint "$CKPT" \
+        --dataset "$DATASET" \
+        --tta_strategies none flips d4 d4_color \
+        --aggregations mean vote confidence \
+        --batch_size "$BATCH_SIZE" \
+        --cache_dir "$CACHE_DIR"
 done
 
 echo ""
