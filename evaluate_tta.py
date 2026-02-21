@@ -20,9 +20,10 @@ import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 
 from models import get_model
-from data.dataset import TCGAUTDataset
+from data.data import HistoDataset
 from data.transforms import get_tta_transforms, get_val_transform
 from tta.aggregator import aggregate_predictions
+from utils.metrics import per_class_metrics, print_per_class_table
 from torch.utils.data import DataLoader
 
 
@@ -30,6 +31,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="TTA evaluation")
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--checkpoint", type=str, required=True)
+    parser.add_argument("--dataset", type=str, default="tcga-ut",
+                        help="Dataset name (tcga-ut, nct-crc-100k, nct-crc-nonorm)")
     parser.add_argument("--num_classes", type=int, default=None,
                         help="If None, inferred from dataset")
     parser.add_argument("--batch_size", type=int, default=64)
@@ -69,7 +72,7 @@ def run_tta_eval(model, dataset, tta_transforms, aggregation, device, batch_size
         dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         collate_fn=_collate_pil,
     )
 
@@ -115,7 +118,7 @@ def main():
     print(f"Device: {device}")
 
     # Load test dataset
-    test_set = TCGAUTDataset(split="test", transform=None, cache_dir=args.cache_dir)
+    test_set = HistoDataset(args.dataset, split="test", transform=None, cache_dir=args.cache_dir)
     num_classes = args.num_classes or test_set.num_classes
 
     # Load model
@@ -177,6 +180,9 @@ def main():
                 "n_views": n_views,
                 "n_corrected": n_corrected,
                 "n_corrupted": n_corrupted,
+                "per_class": per_class_metrics(
+                    metrics["labels"], metrics["preds"], test_set.classes
+                ),
             }
             results.append(row)
 
@@ -191,6 +197,10 @@ def main():
 
     print(f"{'='*W}")
 
+    # Per-class breakdown for every strategy / aggregation
+    for row in results:
+        print_per_class_table(row["per_class"], row["strategy"], row["aggregation"])
+
     # Find best
     best = max(results, key=lambda r: r["balanced_acc"])
     print(
@@ -202,7 +212,7 @@ def main():
     import json
     _SKIP = {"preds", "labels"}
     serialisable = [{k: v for k, v in r.items() if k not in _SKIP} for r in results]
-    out_path = f"tta_results_{args.model}.json"
+    out_path = f"tta_results_{args.dataset}_{args.model}.json"
     with open(out_path, "w") as f:
         json.dump(serialisable, f, indent=2)
     print(f"Results saved to {out_path}")

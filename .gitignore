@@ -25,6 +25,7 @@ tta_results_*.json
 *.log
 runs/
 tensorboard/
+/logs
 
 # Environment / secrets
 .env

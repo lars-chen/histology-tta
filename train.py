@@ -52,6 +52,8 @@ def parse_args():
                         help="Early stopping patience (0 = disabled)")
     parser.add_argument("--no_augment", action="store_true",
                         help="Disable training augmentation (use val transform for training)")
+    parser.add_argument("--amp", action="store_true",
+                        help="Enable mixed-precision training (fp16 AMP) — speeds up large models")
     return parser.parse_args()
 
 
@@ -113,6 +115,7 @@ def main():
             model_name=f"{args.dataset}_{args.model}_frozen_stage1",
             label_smoothing=args.label_smoothing,
             patience=args.patience,
+            amp=args.amp,
         )
         # Stage 2: unfreeze and fine-tune
         model.unfreeze_backbone()
@@ -135,6 +138,7 @@ def main():
             model_name=f"{args.dataset}_{args.model}_finetuned",
             label_smoothing=args.label_smoothing,
             patience=args.patience,
+            amp=args.amp,
         )
     else:
         train(
@@ -149,6 +153,7 @@ def main():
             model_name=ckpt_name,
             label_smoothing=args.label_smoothing,
             patience=args.patience,
+            amp=args.amp,
         )
 
 
