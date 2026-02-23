@@ -17,8 +17,12 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     criterion: nn.Module,
     device: str,
+    amp: bool = False,
 ) -> Dict[str, float]:
     model.train()
+    use_amp = amp and device == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+
     total_loss = 0.0
     correct = 0
     total = 0
@@ -26,12 +30,14 @@ def train_one_epoch(
 
     pbar = tqdm(loader, desc="  train", leave=False, dynamic_ncols=True)
     for images, labels in pbar:
-        images, labels = images.to(device), labels.to(device)
+        images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
         optimizer.zero_grad()
-        logits = model(images)
-        loss = criterion(logits, labels)
-        loss.backward()
-        optimizer.step()
+        with torch.amp.autocast(device_type=device, dtype=torch.float16, enabled=use_amp):
+            logits = model(images)
+            loss = criterion(logits, labels)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         total_loss += loss.item() * labels.size(0)
         correct += (logits.argmax(1) == labels).sum().item()
@@ -80,6 +86,7 @@ def train(
     model_name: str = "model",
     label_smoothing: float = 0.1,
     patience: int = 0,
+    amp: bool = False,
 ):
     """
     Full training loop with checkpointing.
@@ -111,11 +118,13 @@ def train(
     print(f"  Trainable params: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
     if patience:
         print(f"  Early stopping patience: {patience}")
+    if amp:
+        print(f"  Mixed precision: fp16 AMP enabled")
     print(f"{'='*60}\n")
 
     for epoch in range(1, num_epochs + 1):
         train_stats = train_one_epoch(
-            model, train_loader, optimizer, criterion, device
+            model, train_loader, optimizer, criterion, device, amp=amp
         )
         val_stats = evaluate(model, val_loader, criterion, device)
         if scheduler is not None:

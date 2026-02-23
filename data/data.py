@@ -22,7 +22,6 @@ To add a dataset, add one entry to DATASETS below.
 import io
 import random
 from collections import defaultdict
-from pathlib import Path
 from typing import Callable, Optional
 
 import torch
@@ -137,7 +136,8 @@ class HistoDataset(Dataset):
         self._label_col = label_col
         load_kw = {} if subset is None else {"name": subset}
         self._hf = load_dataset(repo, split=hf_split,
-                                streaming=streaming, cache_dir=cache_dir, **load_kw)
+                                streaming=streaming, cache_dir=cache_dir,
+                                num_proc=1, **load_kw)
 
         # Build class list
         if predefined_classes is not None:
