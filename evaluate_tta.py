@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import os
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
@@ -121,6 +122,15 @@ def main():
     test_set = HistoDataset(args.dataset, split="test", transform=None, cache_dir=args.cache_dir)
     num_classes = args.num_classes or test_set.num_classes
 
+    # Infer backbone mode from checkpoint filename (frozen vs finetuned)
+    ckpt_stem = os.path.basename(args.checkpoint)
+    if "_frozen" in ckpt_stem:
+        backbone_mode = "frozen"
+    elif "_finetuned" in ckpt_stem:
+        backbone_mode = "finetuned"
+    else:
+        backbone_mode = "unknown"
+
     # Load model
     model = get_model(args.model, num_classes=num_classes).to(device)
     ckpt = torch.load(args.checkpoint, map_location=device)
@@ -170,6 +180,9 @@ def main():
                 n_corrected = n_corrupted = None
 
             row = {
+                "model": args.model,
+                "dataset": args.dataset,
+                "backbone_mode": backbone_mode,
                 "strategy": strategy,
                 "aggregation": agg,
                 "acc": metrics["acc"],
@@ -212,7 +225,7 @@ def main():
     import json
     _SKIP = {"preds", "labels"}
     serialisable = [{k: v for k, v in r.items() if k not in _SKIP} for r in results]
-    out_path = f"tta_results_{args.dataset}_{args.model}.json"
+    out_path = f"tta_results_{args.dataset}_{args.model}_{backbone_mode}.json"
     with open(out_path, "w") as f:
         json.dump(serialisable, f, indent=2)
     print(f"Results saved to {out_path}")
