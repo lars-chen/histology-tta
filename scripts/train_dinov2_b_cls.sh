@@ -20,7 +20,7 @@ PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
 PYTHON=$PROJECT/.venv/bin/python
 CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
-CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
+CACHE_DIR=${HF_CACHE_DIR:-/gpfs/scratch/lpc8816/.cache/huggingface}
 
 MODEL=dinov2_b
 BATCH_SIZE=32
