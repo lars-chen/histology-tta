@@ -1,19 +1,18 @@
 #!/bin/bash
-#SBATCH --job-name=histo_dinov2_g_ft
+#SBATCH --job-name=histo_phikon_ft
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
 #SBATCH --partition=gpu4_medium
-#SBATCH --gres=gpu:a100:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=128G
-#SBATCH --time=1-12:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=64G
+#SBATCH --time=1-00:00:00
 
 # ---------------------------------------------------------------------------
-# Full fine-tuning of DINOv2-Giant (ViT-G/14, 1.1B params) on all available
-# datasets, then TTA evaluation on datasets with a dedicated test split.
+# Train Phikon (86M params, full fine-tune) on all available datasets,
+# then run TTA evaluation.
 #
-# DINOv2 weights are downloaded from facebookresearch/dinov2 on first run.
-# Set TORCH_HUB_DIR if you want to cache them somewhere specific.
+# Publicly available model — no HF token needed.
 # ---------------------------------------------------------------------------
 
 PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
@@ -22,9 +21,9 @@ CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-/gpfs/scratch/lpc8816/.cache/huggingface}
 
-MODEL=dinov2_g
-BATCH_SIZE=4
-EVAL_BATCH_SIZE=4
+MODEL=phikon
+BATCH_SIZE=16
+EVAL_BATCH_SIZE=32
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-nonorm)
 

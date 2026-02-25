@@ -1,19 +1,18 @@
 #!/bin/bash
-#SBATCH --job-name=histo_dinov2_g_ft
+#SBATCH --job-name=histo_gigapath_ft
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
-#SBATCH --partition=gpu4_medium
-#SBATCH --gres=gpu:a100:1
+#SBATCH --partition=a100_short
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=128G
 #SBATCH --time=1-12:00:00
 
 # ---------------------------------------------------------------------------
-# Full fine-tuning of DINOv2-Giant (ViT-G/14, 1.1B params) on all available
-# datasets, then TTA evaluation on datasets with a dedicated test split.
+# Train GigaPath (1.1B params, full fine-tune) on all available datasets,
+# then run TTA evaluation.
 #
-# DINOv2 weights are downloaded from facebookresearch/dinov2 on first run.
-# Set TORCH_HUB_DIR if you want to cache them somewhere specific.
+# Weights downloaded from HF Hub. Requires HF_TOKEN for gated access.
 # ---------------------------------------------------------------------------
 
 PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
@@ -22,7 +21,7 @@ CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-/gpfs/scratch/lpc8816/.cache/huggingface}
 
-MODEL=dinov2_g
+MODEL=gigapath
 BATCH_SIZE=4
 EVAL_BATCH_SIZE=4
 EPOCHS=20
@@ -48,7 +47,7 @@ for DATASET in "${DATASETS[@]}"; do
         --batch_size "$BATCH_SIZE" \
         --lr 1e-5 \
         --patience 2 \
-        --num_workers 2 \
+        --num_workers 4 \
         --amp \
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"

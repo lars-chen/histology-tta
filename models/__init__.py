@@ -1,19 +1,21 @@
 """
 Model factory for all backbone + classifier head models.
 
-Dispatches to torchvision CNN backbones, DINOv2 ViT backbones, or
-ConvNeXt V2 backbones based on name.
+Dispatches to torchvision CNN backbones, DINOv2 ViT backbones,
+ConvNeXt V2 backbones, or histology foundation models based on name.
 
 Torchvision models:  resnet18, resnet50, vgg16, efficientnet_b7, mobilenet_v3
 DINOv2 models:       dinov2_s, dinov2_b, dinov2_l, dinov2_g
 ConvNeXt V2 models:  convnextv2_tiny, convnextv2_small, convnextv2_base,
                      convnextv2_large, convnextv2_huge
                      (short aliases: convnextv2_t/s/b/l/h)
+Foundation models:   gigapath, uni, uni2, phikon, phikon2, virchow, virchow2
 """
 
 from .torchvision_models import get_torchvision_model, _MODEL_REGISTRY
 from .dinov2 import get_dinov2_model
 from .convnextv2 import get_convnextv2_model, _ALIASES as _CONVNEXTV2_ALIASES
+from .foundation import get_foundation_model, _FOUNDATION_MODELS
 
 _DINOV2_MODELS = {"dinov2_s", "dinov2_b", "dinov2_l", "dinov2_g"}
 _CONVNEXTV2_MODELS = set(_CONVNEXTV2_ALIASES.keys())
@@ -29,7 +31,8 @@ def get_model(
     Instantiate any supported model by name.
 
     Args:
-        name: model key — one of the torchvision, DINOv2, or ConvNeXt V2 model names
+        name: model key — one of the torchvision, DINOv2, ConvNeXt V2,
+              or foundation model names
         num_classes: number of output classes
         dropout: head dropout probability
         freeze_backbone: if True, backbone weights are frozen (linear probe)
@@ -46,6 +49,13 @@ def get_model(
         )
     if name in _CONVNEXTV2_MODELS:
         return get_convnextv2_model(
+            name,
+            num_classes=num_classes,
+            dropout=dropout,
+            freeze_backbone=freeze_backbone,
+        )
+    if name in _FOUNDATION_MODELS:
+        return get_foundation_model(
             name,
             num_classes=num_classes,
             dropout=dropout,

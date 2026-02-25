@@ -21,6 +21,7 @@ CACHE_DIR=${HF_CACHE_DIR:-/gpfs/scratch/lpc8816/.cache/huggingface}
 
 MODEL=resnet18
 BATCH_SIZE=64
+EVAL_BATCH_SIZE=128
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-nonorm)
 
@@ -52,7 +53,7 @@ for DATASET in "${DATASETS[@]}"; do
         --checkpoint_dir "$CKPT_DIR"
 
     # Only tcga-ut has a dedicated test split for TTA evaluation
-    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_best.pt"
+    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_aug_seed42_best.pt"
     echo ""
     echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
     $PYTHON evaluate_tta.py \
@@ -61,7 +62,8 @@ for DATASET in "${DATASETS[@]}"; do
         --dataset "$DATASET" \
         --tta_strategies none flips d4 d4_color \
         --aggregations mean vote confidence \
-        --batch_size "$BATCH_SIZE" \
+        --batch_size "$EVAL_BATCH_SIZE" \
+        --amp \
         --cache_dir "$CACHE_DIR"
 done
 

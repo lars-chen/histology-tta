@@ -5,8 +5,8 @@
 #SBATCH --partition=gpu4_medium
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=64G
-#SBATCH --time=9:00:00
+#SBATCH --mem=128G
+#SBATCH --time=24:00:00
 
 # ---------------------------------------------------------------------------
 # Full fine-tuning of ConvNeXt V2-Tiny (28M params) on all available
@@ -22,8 +22,10 @@ LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-/gpfs/scratch/lpc8816/.cache/huggingface}
 
 MODEL=convnextv2_tiny
-BATCH_SIZE=32
-EPOCHS=20
+BATCH_SIZE=64
+EVAL_BATCH_SIZE=64
+EPOCHS=30
+PATIENCE=7
 DATASETS=(tcga-ut nct-crc-100k nct-crc-nonorm)
 
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
@@ -45,13 +47,13 @@ for DATASET in "${DATASETS[@]}"; do
         --epochs "$EPOCHS" \
         --batch_size "$BATCH_SIZE" \
         --lr 5e-5 \
-        --patience 2 \
-        --num_workers 2 \
+        --patience "$PATIENCE" \
+        --num_workers 4 \
         --amp \
         --cache_dir "$CACHE_DIR" \
         --checkpoint_dir "$CKPT_DIR"
 
-    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_finetuned_best.pt"
+    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_finetuned_aug_seed42_best.pt"
     echo ""
     echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
     $PYTHON evaluate_tta.py \
@@ -60,7 +62,8 @@ for DATASET in "${DATASETS[@]}"; do
         --dataset "$DATASET" \
         --tta_strategies none flips d4 d4_color \
         --aggregations mean vote confidence \
-        --batch_size "$BATCH_SIZE" \
+        --batch_size "$EVAL_BATCH_SIZE" \
+        --amp \
         --cache_dir "$CACHE_DIR"
 done
 

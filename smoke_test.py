@@ -154,7 +154,7 @@ def main():
     print("\nTo run TTA evaluation on a saved checkpoint:")
     print("  python evaluate_tta.py \\")
     print("      --model resnet18 \\")
-    print("      --checkpoint checkpoints/resnet18_best.pt \\")
+    print("      --checkpoint checkpoints/tcga-ut_resnet18_frozen_seed42_best.pt \\")
     print("      --tta_strategies none flips d4 d4_color \\")
     print("      --aggregations mean vote confidence")
 
