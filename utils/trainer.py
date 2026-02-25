@@ -87,6 +87,7 @@ def train(
     label_smoothing: float = 0.1,
     patience: int = 0,
     amp: bool = False,
+    class_weights: torch.Tensor = None,
 ):
     """
     Full training loop with checkpointing.
@@ -104,8 +105,10 @@ def train(
         label_smoothing: cross-entropy label smoothing (helps generalization)
         patience: stop after this many epochs with no val_acc improvement
                   (0 = disabled)
+        class_weights: inverse-frequency weights for CrossEntropyLoss (None = uniform)
     """
-    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    weight = class_weights.to(device) if class_weights is not None else None
+    criterion = nn.CrossEntropyLoss(weight=weight, label_smoothing=label_smoothing)
     ckpt_dir = Path(checkpoint_dir)
     ckpt_dir.mkdir(exist_ok=True)
 

@@ -248,6 +248,24 @@ def _patient_level_split(hf_dataset, patient_col: str, val_fraction: float, seed
     return train_indices, val_indices
 
 
+def _compute_class_weights(labels, num_classes: int) -> torch.Tensor:
+    """
+    Compute inverse-frequency class weights for balanced training.
+
+    Returns a tensor of shape (num_classes,) where each weight is
+    n_total / (num_classes * n_class), clamped to [0.1, 10.0] for stability.
+    """
+    counts = torch.zeros(num_classes)
+    for label in labels:
+        counts[int(label)] += 1
+    # Inverse frequency: n_total / (num_classes * count_per_class)
+    weights = counts.sum() / (num_classes * counts.clamp(min=1))
+    weights = weights.clamp(min=0.1, max=10.0)
+    print(f"  Class weights: min={weights.min():.2f}, max={weights.max():.2f}, "
+          f"ratio={weights.max()/weights.min():.1f}x")
+    return weights
+
+
 def get_dataloaders(
     name: str,
     train_transform: Callable,
@@ -256,14 +274,18 @@ def get_dataloaders(
     batch_size: int = 32,
     num_workers: int = 4,
     cache_dir: Optional[str] = None,
+    seed: int = 42,
 ):
     """
-    Returns (train_loader, val_loader, test_loader, num_classes).
+    Returns (train_loader, val_loader, test_loader, num_classes, class_weights).
 
     Val set is carved from the training split.  When the dataset registry
     specifies a patient_col, splitting is done at the patient level to avoid
     slide-leakage (patches from the same patient in both train and val).
     Otherwise falls back to random patch-level splitting.
+
+    class_weights is a tensor of shape (num_classes,) with inverse-frequency
+    weights computed from the training split, suitable for CrossEntropyLoss.
     """
     train_ds = HistoDataset(name, split="train", transform=train_transform, cache_dir=cache_dir)
     num_classes = train_ds.num_classes
@@ -272,7 +294,7 @@ def get_dataloaders(
 
     if patient_col is not None:
         train_indices, val_indices = _patient_level_split(
-            train_ds._hf, patient_col, val_fraction
+            train_ds._hf, patient_col, val_fraction, seed=seed
         )
         train_set = _TransformSubset(train_ds, train_indices, train_transform)
         val_set   = _TransformSubset(train_ds, val_indices,   val_transform)
@@ -280,10 +302,18 @@ def get_dataloaders(
         n_val = int(len(train_ds) * val_fraction)
         _train, _val = random_split(
             train_ds, [len(train_ds) - n_val, n_val],
-            generator=torch.Generator().manual_seed(42),
+            generator=torch.Generator().manual_seed(seed),
         )
-        train_set = _TransformSubset(train_ds, list(_train.indices), train_transform)
+        train_indices = list(_train.indices)
+        train_set = _TransformSubset(train_ds, train_indices, train_transform)
         val_set   = _TransformSubset(train_ds, list(_val.indices),   val_transform)
+
+    # Compute inverse-frequency class weights from training labels
+    label_col = train_ds._label_col
+    train_labels = [_get_field(train_ds._hf[i], label_col) for i in train_indices]
+    train_labels = [train_ds.class_to_idx[l] if isinstance(l, str) else int(l)
+                    for l in train_labels]
+    class_weights = _compute_class_weights(train_labels, num_classes)
 
     _, _, _, test_split, *_ = DATASETS[name]
     test_loader = None
@@ -291,12 +321,14 @@ def get_dataloaders(
         test_ds = HistoDataset(name, split="test", transform=val_transform, cache_dir=cache_dir)
         test_loader = DataLoader(test_ds, batch_size=batch_size, num_workers=num_workers)
 
+    g = torch.Generator().manual_seed(seed)
     loader_kw = dict(batch_size=batch_size, num_workers=num_workers)
     return (
-        DataLoader(train_set, shuffle=True,  **loader_kw),
+        DataLoader(train_set, shuffle=True,  generator=g, **loader_kw),
         DataLoader(val_set,   shuffle=False, **loader_kw),
         test_loader,
         num_classes,
+        class_weights,
     )
 
 

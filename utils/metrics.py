@@ -56,3 +56,5 @@ def print_per_class_table(class_metrics, strategy, agg):
         acc_str = f"{r['acc']:.4f}" if r["acc"] == r["acc"] else "     nan"  # NaN check
         print(f"{name:<{name_w}}  {acc_str:>8}  {r['f1']:>8.4f}  {r['support']:>8,}")
     print("-" * W)
+    macro_f1 = sum(r["f1"] for r in class_metrics) / len(class_metrics)
+    print(f"{'macro-F1':<{name_w}}  {'':>8}  {macro_f1:>8.4f}")
