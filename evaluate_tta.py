@@ -16,7 +16,7 @@ Usage:
         --model resnet50 \
         --checkpoint checkpoints/resnet50_best.pt \
         --num_classes 33 \
-        --tta_strategies none flips d4 d4_color full \
+        --tta_strategies none flips d4 \
         --aggregations mean vote confidence
 """
 
@@ -33,7 +33,7 @@ from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score
 from tqdm import tqdm
 
 from models import get_model
-from data.data import HistoDataset
+from data.data import HistoDataset, MHISTDataset
 from data.transforms import get_tta_transforms
 from tta.aggregator import aggregate_predictions
 from utils.metrics import per_class_metrics, print_per_class_table
@@ -67,7 +67,7 @@ def parse_args():
     parser.add_argument("--cache_dir", type=str, default=None)
     parser.add_argument(
         "--tta_strategies", nargs="+",
-        default=["none", "flips", "d4", "d4_color"],
+        default=["none", "flips", "d4"],
         help="TTA strategies to evaluate"
     )
     parser.add_argument(
@@ -202,6 +202,22 @@ def _compute_metrics(all_logits, all_labels, view_indices, aggregation):
     view_preds = view_probs.argmax(dim=-1)             # (n_views, N)
     agreement_rate = (view_preds == view_preds[0:1]).all(dim=0).float().mean().item()
 
+    # Expected Calibration Error (ECE) — 15 equal-width bins
+    max_probs = probs.max(dim=1).values.numpy()        # confidence per sample
+    n_bins = 15
+    bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    for b in range(n_bins):
+        lo, hi = bin_boundaries[b], bin_boundaries[b + 1]
+        mask = (max_probs > lo) & (max_probs <= hi)
+        if b == 0:
+            mask |= (max_probs == lo)   # include 0.0 in first bin
+        if mask.sum() == 0:
+            continue
+        bin_acc = (preds[mask] == labels[mask]).mean()
+        bin_conf = max_probs[mask].mean()
+        ece += mask.sum() / n_total * abs(bin_acc - bin_conf)
+
     return {
         "acc": accuracy_score(labels, preds),
         "balanced_acc": balanced_accuracy_score(labels, preds),
@@ -215,6 +231,7 @@ def _compute_metrics(all_logits, all_labels, view_indices, aggregation):
         "aleatoric_unc": aleatoric_unc,
         "epistemic_unc": epistemic_unc,
         "agreement_rate": agreement_rate,
+        "ece": float(ece),
     }
 
 
@@ -277,17 +294,25 @@ def main():
     set_seed(args.seed)
 
     # Load test dataset
-    test_set = HistoDataset(args.dataset, split="test", transform=None, cache_dir=args.cache_dir)
+    if args.dataset == "mhist":
+        test_set = MHISTDataset(split="test", transform=None)
+    else:
+        test_set = HistoDataset(args.dataset, split="test", transform=None, cache_dir=args.cache_dir)
     num_classes = args.num_classes or test_set.num_classes
 
     backbone_mode = _infer_backbone_mode(args.checkpoint)
     no_augment = args.no_augment or _infer_no_augment(args.checkpoint)
     aug_tag = "noaug" if no_augment else "aug"
 
-    # Load model
-    model = get_model(args.model, num_classes=num_classes).to(device)
+    # Load model (match backbone mode from training so state_dict keys align)
+    freeze = backbone_mode == "frozen"
+    model = get_model(args.model, num_classes=num_classes, freeze_backbone=freeze).to(device)
     ckpt = torch.load(args.checkpoint, map_location=device)
-    model.load_state_dict(ckpt["model_state_dict"])
+    if ckpt.get("head_only"):
+        # Head-only checkpoint: backbone uses pretrained weights, load classifier only
+        model.classifier.load_state_dict(ckpt["classifier_state_dict"])
+    else:
+        model.load_state_dict(ckpt["model_state_dict"])
     ckpt_name = os.path.basename(args.checkpoint)
     print(f"\nLoaded {ckpt_name} (epoch {ckpt['epoch']}, val_acc={ckpt['val_acc']:.4f})")
     print(f"Seed: {args.seed}")
@@ -363,6 +388,7 @@ def main():
                 "aleatoric_unc": metrics["aleatoric_unc"],
                 "epistemic_unc": metrics["epistemic_unc"],
                 "agreement_rate": metrics["agreement_rate"],
+                "ece": metrics["ece"],
                 "per_class": per_class_metrics(
                     metrics["labels"], metrics["preds"], test_set.classes
                 ),
@@ -419,7 +445,12 @@ def main():
     # Save results with seed included
     _SKIP = {"preds", "labels"}
     serialisable = [{k: v for k, v in r.items() if k not in _SKIP} for r in all_rows]
-    out_path = f"tta_results_{args.dataset}_{args.model}_{backbone_mode}_{aug_tag}_seed{args.seed}.json"
+    os.makedirs("results/raw", exist_ok=True)
+    # Detect subset tag from checkpoint name (e.g. "_sub1000_")
+    import re as _re
+    _sub_match = _re.search(r'(_sub\d+)', os.path.basename(args.checkpoint))
+    _sub_tag = _sub_match.group(1) if _sub_match else ""
+    out_path = f"results/raw/tta_results_{args.dataset}_{args.model}_{backbone_mode}_{aug_tag}{_sub_tag}_seed{args.seed}.json"
     with open(out_path, "w") as f:
         json.dump(serialisable, f, indent=2)
     print(f"Results saved to {out_path}")
