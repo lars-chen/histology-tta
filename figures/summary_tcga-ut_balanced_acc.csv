@@ -1,0 +1,5 @@
+Experiment,No TTA,Flips,D4,D4+Color
+gigapath / frozen / aug,0.7692,0.7707,0.7719,0.7716
+phikon / frozen / aug,0.7256,0.7297,0.7312,0.7315
+phikon2 / frozen / aug,0.7832,0.7852,0.7854,0.7856
+phikon2 / frozen / noaug,0.7867,0.7895,0.7899,0.7904
