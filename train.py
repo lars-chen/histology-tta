@@ -66,10 +66,14 @@ def parse_args():
                         help="Early stopping patience (0 = disabled)")
     parser.add_argument("--no_augment", action="store_true",
                         help="Disable training augmentation (use val transform for training)")
+    parser.add_argument("--no_pretrained", action="store_true",
+                        help="Train from random initialization (no pretrained weights)")
     parser.add_argument("--amp", action="store_true",
                         help="Enable mixed-precision training (fp16 AMP) — speeds up large models")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed (submit separate jobs with different seeds for variance estimation)")
+    parser.add_argument("--train_subset", type=int, default=None,
+                        help="Subsample training set to this many examples (for ablation studies)")
     return parser.parse_args()
 
 
@@ -92,12 +96,15 @@ def train_one_seed(args, seed, device):
         num_workers=args.num_workers,
         cache_dir=args.cache_dir,
         seed=seed,
+        train_subset=args.train_subset,
     )
 
     # Checkpoint name includes seed for unique identification
     backbone_mode = "frozen" if args.freeze_backbone else "finetuned"
     aug_tag = "noaug" if args.no_augment else "aug"
-    ckpt_name = f"{args.dataset}_{args.model}_{backbone_mode}_{aug_tag}_seed{seed}"
+    scratch_tag = "_scratch" if args.no_pretrained else ""
+    subset_tag = f"_sub{args.train_subset}" if args.train_subset else ""
+    ckpt_name = f"{args.dataset}_{args.model}_{backbone_mode}_{aug_tag}{scratch_tag}{subset_tag}_seed{seed}"
 
     # --- Model ---
     model = get_model(
@@ -105,6 +112,7 @@ def train_one_seed(args, seed, device):
         num_classes=num_classes,
         dropout=args.dropout,
         freeze_backbone=args.freeze_backbone,
+        pretrained=not args.no_pretrained,
     ).to(device)
 
     # --- Optimizer: differential LRs ---
@@ -127,7 +135,7 @@ def train_one_seed(args, seed, device):
             device=device,
             scheduler=scheduler,
             checkpoint_dir=args.checkpoint_dir,
-            model_name=f"{args.dataset}_{args.model}_frozen_{aug_tag}_stage1_seed{seed}",
+            model_name=f"{args.dataset}_{args.model}_frozen_{aug_tag}{scratch_tag}_stage1_seed{seed}",
             label_smoothing=args.label_smoothing,
             patience=args.patience,
             amp=args.amp,
@@ -151,7 +159,7 @@ def train_one_seed(args, seed, device):
             device=device,
             scheduler=scheduler,
             checkpoint_dir=args.checkpoint_dir,
-            model_name=f"{args.dataset}_{args.model}_finetuned_{aug_tag}_seed{seed}",
+            model_name=f"{args.dataset}_{args.model}_finetuned_{aug_tag}{scratch_tag}_seed{seed}",
             label_smoothing=args.label_smoothing,
             patience=args.patience,
             amp=args.amp,

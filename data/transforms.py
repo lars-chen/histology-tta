@@ -52,10 +52,13 @@ def get_train_transform(crop_size: int = DEFAULT_CROP) -> T.Compose:
         ),
         T.RandomHorizontalFlip(),
         T.RandomVerticalFlip(),
-        # 90° grid rotation — crucial for histology
-        T.RandomApply([T.RandomRotation(degrees=(90, 90))], p=0.5),
-        T.RandomApply([T.RandomRotation(degrees=(180, 180))], p=0.25),
-        T.RandomApply([T.RandomRotation(degrees=(270, 270))], p=0.25),
+        # Uniform random 90° rotation — fast transpose, no interpolation
+        T.RandomChoice([
+            T.Lambda(lambda img: img),
+            T.Lambda(lambda img: TF.rotate(img, 90)),
+            T.Lambda(lambda img: TF.rotate(img, 180)),
+            T.Lambda(lambda img: TF.rotate(img, 270)),
+        ]),
         # Stain variation simulation
         T.ColorJitter(
             brightness=0.25,
@@ -131,9 +134,6 @@ def get_tta_transforms(
             "flips"     — hflip, vflip, both
             "d4"        — all 8 elements of the dihedral group D4
                           (4 rotations × 2 flips) — recommended for histology
-            "d4_color"  — D4 + mild color jitter variants
-            "multiscale"— centre crop at 3 different scales
-            "full"      — D4 + multiscale + color (aggressive, ~30 views)
 
     Returns:
         List of TTATransform objects. Pass each to the model and aggregate.
@@ -160,56 +160,31 @@ def get_tta_transforms(
         ("hflip+rot270", [hflip(), rot(270)]),
     ]
 
-    # --- Color variants ---
-    def mild_color(brightness=0.15, contrast=0.15, saturation=0.15, hue=0.03):
-        return T.ColorJitter(brightness, contrast, saturation, hue)
-
-    color_variants = [
-        ("color+bright", [mild_color(brightness=0.2)]),
-        ("color+contrast", [mild_color(contrast=0.2)]),
-        ("color+saturation", [mild_color(saturation=0.2)]),
-    ]
-
-    # --- Multi-scale crops ---
-    def scale_crop(scale: float):
-        size = int(crop_size * scale)
-        return T.Lambda(
-            lambda img: TF.center_crop(TF.resize(img, int(size * 256 / 224)), size)
-        )
-
-    multiscale_ops = [
-        ("scale_0.85", [T.Resize(int(crop_size * 0.85 * 256 / 224)), T.CenterCrop(int(crop_size * 0.85))]),
-        ("scale_1.15", [T.Resize(int(crop_size * 1.15 * 256 / 224)), T.CenterCrop(crop_size)]),
-    ]
-
     # --- Build strategy ---
     if strategy == "none":
         selected = [("orig", [])]
 
     elif strategy == "flips":
+        # vflip = hflip∘rot180, hvflip = rot180 — use canonical D4 names
+        # so they deduplicate correctly with the d4 strategy
         selected = [
-            ("orig",   []),
-            ("hflip",  [hflip()]),
-            ("vflip",  [T.Lambda(lambda img: TF.vflip(img))]),
-            ("hvflip", [hflip(), T.Lambda(lambda img: TF.vflip(img))]),
+            ("orig",         []),
+            ("hflip",        [hflip()]),
+            ("hflip+rot180", [hflip(), rot(180)]),
+            ("rot180",       [rot(180)]),
         ]
 
     elif strategy == "d4":
         selected = d4_ops
 
     elif strategy == "d4_color":
-        selected = d4_ops + color_variants
-
-    elif strategy == "multiscale":
-        selected = [("orig", [])] + multiscale_ops
-
-    elif strategy == "full":
-        selected = d4_ops + color_variants + multiscale_ops
+        # Legacy: kept for backward compat with running jobs. Falls back to d4.
+        selected = d4_ops
 
     else:
         raise ValueError(
             f"Unknown TTA strategy '{strategy}'. "
-            "Choose from: none, flips, d4, d4_color, multiscale, full"
+            "Choose from: none, flips, d4"
         )
 
     transforms = [

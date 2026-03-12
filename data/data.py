@@ -22,6 +22,7 @@ To add a dataset, add one entry to DATASETS below.
 import io
 import random
 from collections import defaultdict
+from pathlib import Path
 from typing import Callable, Optional
 
 import torch
@@ -81,6 +82,45 @@ DATASETS = {
     "nct-crc-100k":   ("1aurent/NCT-CRC-HE", None,   "NCT_CRC_HE_100K",       "CRC_VAL_HE_7K", "image", "label",      None,                 None),
     "nct-crc-nonorm": ("1aurent/NCT-CRC-HE", None,   "NCT_CRC_HE_100K_NONORM","CRC_VAL_HE_7K", "image", "label",      None,                 None),
 }
+
+# ---------------------------------------------------------------------------
+# MHIST — local dataset (not on HuggingFace)
+# ---------------------------------------------------------------------------
+_MHIST_CLASSES = ["HP", "SSA"]
+_MHIST_ROOT = Path(__file__).resolve().parent / "mhist"
+
+
+class MHISTDataset(Dataset):
+    """Local MHIST dataset (images/ dir + annotations.csv)."""
+
+    def __init__(self, split: str = "train", transform: Optional[Callable] = None,
+                 root: Optional[Path] = None):
+        import pandas as pd
+        self.root = Path(root) if root else _MHIST_ROOT
+        ann = pd.read_csv(self.root / "annotations.csv")
+        partition = "train" if split == "train" else "test"
+        ann = ann[ann["Partition"] == partition].reset_index(drop=True)
+        self.filenames = ann["Image Name"].tolist()
+        self.labels = ann["Majority Vote Label"].tolist()
+        self.agreement = ann["Number of Annotators who Selected SSA (Out of 7)"].tolist()
+        self.classes = _MHIST_CLASSES
+        self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
+        self.transform = transform
+        print(f"Loaded 'mhist' ({split}): {len(self):,} samples, {len(self.classes)} classes")
+
+    def __len__(self):
+        return len(self.filenames)
+
+    def __getitem__(self, idx):
+        img = Image.open(self.root / "images" / self.filenames[idx]).convert("RGB")
+        label = self.class_to_idx[self.labels[idx]]
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+    @property
+    def num_classes(self):
+        return len(self.classes)
 
 
 def _get_field(sample: dict, col: str):
@@ -266,6 +306,58 @@ def _compute_class_weights(labels, num_classes: int) -> torch.Tensor:
     return weights
 
 
+def _get_mhist_dataloaders(
+    train_transform, val_transform, val_fraction, batch_size, num_workers, seed,
+):
+    """Build train/val/test loaders for the local MHIST dataset."""
+    train_ds = MHISTDataset(split="train", transform=train_transform)
+    num_classes = train_ds.num_classes
+
+    n_val = int(len(train_ds) * val_fraction)
+    _train, _val = random_split(
+        train_ds, [len(train_ds) - n_val, n_val],
+        generator=torch.Generator().manual_seed(seed),
+    )
+    # Wrap with independent transforms
+    train_set = _MHISTSubset(train_ds, list(_train.indices), train_transform)
+    val_set = _MHISTSubset(train_ds, list(_val.indices), val_transform)
+
+    # Class weights from training split
+    train_labels = [train_ds.class_to_idx[train_ds.labels[i]] for i in _train.indices]
+    class_weights = _compute_class_weights(train_labels, num_classes)
+
+    test_ds = MHISTDataset(split="test", transform=val_transform)
+    test_loader = DataLoader(test_ds, batch_size=batch_size, num_workers=num_workers)
+
+    g = torch.Generator().manual_seed(seed)
+    loader_kw = dict(batch_size=batch_size, num_workers=num_workers)
+    return (
+        DataLoader(train_set, shuffle=True, generator=g, **loader_kw),
+        DataLoader(val_set, shuffle=False, **loader_kw),
+        test_loader,
+        num_classes,
+        class_weights,
+    )
+
+
+class _MHISTSubset(Dataset):
+    """Subset of MHISTDataset with an independent transform."""
+    def __init__(self, base: MHISTDataset, indices, transform):
+        self._base = base
+        self._indices = indices
+        self._transform = transform
+
+    def __len__(self):
+        return len(self._indices)
+
+    def __getitem__(self, idx):
+        img = Image.open(self._base.root / "images" / self._base.filenames[self._indices[idx]]).convert("RGB")
+        label = self._base.class_to_idx[self._base.labels[self._indices[idx]]]
+        if self._transform:
+            img = self._transform(img)
+        return img, label
+
+
 def get_dataloaders(
     name: str,
     train_transform: Callable,
@@ -275,6 +367,7 @@ def get_dataloaders(
     num_workers: int = 4,
     cache_dir: Optional[str] = None,
     seed: int = 42,
+    train_subset: Optional[int] = None,
 ):
     """
     Returns (train_loader, val_loader, test_loader, num_classes, class_weights).
@@ -287,6 +380,13 @@ def get_dataloaders(
     class_weights is a tensor of shape (num_classes,) with inverse-frequency
     weights computed from the training split, suitable for CrossEntropyLoss.
     """
+    # MHIST: local dataset, not in HF registry
+    if name == "mhist":
+        return _get_mhist_dataloaders(
+            train_transform, val_transform, val_fraction, batch_size,
+            num_workers, seed,
+        )
+
     train_ds = HistoDataset(name, split="train", transform=train_transform, cache_dir=cache_dir)
     num_classes = train_ds.num_classes
 
@@ -307,6 +407,14 @@ def get_dataloaders(
         train_indices = list(_train.indices)
         train_set = _TransformSubset(train_ds, train_indices, train_transform)
         val_set   = _TransformSubset(train_ds, list(_val.indices),   val_transform)
+
+    # Optionally subsample training set (for ablation studies)
+    if train_subset is not None and train_subset < len(train_indices):
+        rng = torch.Generator().manual_seed(seed)
+        perm = torch.randperm(len(train_indices), generator=rng)[:train_subset]
+        train_indices = [train_indices[i] for i in perm.tolist()]
+        train_set = _TransformSubset(train_ds, train_indices, train_transform)
+        print(f"  Subsampled training set: {train_subset} / {len(train_ds)} samples")
 
     # Compute inverse-frequency class weights from training labels
     label_col = train_ds._label_col
