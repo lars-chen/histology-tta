@@ -37,9 +37,8 @@ class ResNet18(HistoBaseModel):
     _feature_dim = 512
 
     def build_backbone(self) -> nn.Module:
-        weights = ResNet18_Weights.IMAGENET1K_V1
+        weights = ResNet18_Weights.IMAGENET1K_V1 if self._pretrained else None
         backbone = tvm.resnet18(weights=weights)
-        # Remove final FC layer — we supply our own head
         backbone.fc = nn.Identity()
         return backbone
 
@@ -60,7 +59,7 @@ class ResNet50(HistoBaseModel):
     _feature_dim = 2048
 
     def build_backbone(self) -> nn.Module:
-        weights = ResNet50_Weights.IMAGENET1K_V2
+        weights = ResNet50_Weights.IMAGENET1K_V2 if self._pretrained else None
         backbone = tvm.resnet50(weights=weights)
         backbone.fc = nn.Identity()
         return backbone
@@ -83,7 +82,7 @@ class VGG16(HistoBaseModel):
     _feature_dim = 4096
 
     def build_backbone(self) -> nn.Module:
-        weights = VGG16_BN_Weights.IMAGENET1K_V1
+        weights = VGG16_BN_Weights.IMAGENET1K_V1 if self._pretrained else None
         vgg = tvm.vgg16_bn(weights=weights)
         # VGG: features (conv) → avgpool → classifier (FC layers)
         # We keep features + avgpool + first two FC layers as "backbone"
@@ -119,7 +118,7 @@ class EfficientNetB7(HistoBaseModel):
     _feature_dim = 2560
 
     def build_backbone(self) -> nn.Module:
-        weights = EfficientNet_B7_Weights.IMAGENET1K_V1
+        weights = EfficientNet_B7_Weights.IMAGENET1K_V1 if self._pretrained else None
         eff = tvm.efficientnet_b7(weights=weights)
         # EfficientNet: features → avgpool → classifier
         # We take features + adaptive pooling → flat vector
@@ -147,7 +146,7 @@ class MobileNetV3Large(HistoBaseModel):
     _feature_dim = 960
 
     def build_backbone(self) -> nn.Module:
-        weights = MobileNet_V3_Large_Weights.IMAGENET1K_V2
+        weights = MobileNet_V3_Large_Weights.IMAGENET1K_V2 if self._pretrained else None
         mob = tvm.mobilenet_v3_large(weights=weights)
         # Remove classifier, keep features + avgpool
         backbone = nn.Sequential(
@@ -180,6 +179,7 @@ def get_torchvision_model(
     num_classes: int,
     dropout: float = 0.2,
     freeze_backbone: bool = False,
+    pretrained: bool = True,
 ) -> HistoBaseModel:
     """
     Instantiate a torchvision-based model.
@@ -189,6 +189,7 @@ def get_torchvision_model(
         num_classes: number of output classes
         dropout: head dropout
         freeze_backbone: freeze backbone weights (fast linear probe)
+        pretrained: load pretrained weights (default True)
 
     Returns:
         HistoBaseModel instance
@@ -201,6 +202,7 @@ def get_torchvision_model(
         num_classes=num_classes,
         dropout=dropout,
         freeze_backbone=freeze_backbone,
+        pretrained=pretrained,
     )
     print(f"Loaded {model}")
     return model

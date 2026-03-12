@@ -7,6 +7,7 @@ HistoBaseModel.
 
 Available models:
   gigapath   (1.1B params, feature_dim=1536) — Prov-GigaPath ViT-g
+  hoptimus   (1.1B params, feature_dim=1536) — H-optimus-1 ViT-g (bioptimus)
   uni        (300M params, feature_dim=1024) — UNI ViT-L
   uni2       (681M params, feature_dim=1536) — UNI2-h ViT-H
   phikon     (86M params,  feature_dim=768)  — Phikon ViT-B
@@ -14,7 +15,7 @@ Available models:
   virchow    (632M params, feature_dim=1280) — Virchow ViT-H
   virchow2   (632M params, feature_dim=1280) — Virchow2 ViT-H
 
-Gated models (gigapath, uni, uni2, virchow, virchow2) require a HuggingFace
+Gated models (gigapath, hoptimus, uni, uni2, virchow, virchow2) require a HuggingFace
 token. Set the HF_TOKEN environment variable before running.
 
 Usage:
@@ -93,6 +94,13 @@ _FOUNDATION_MODELS: dict[str, _ModelConfig] = {
         repo="prov-gigapath/prov-gigapath",
         dim=1536,
         loader="timm",
+        gated=True,
+    ),
+    "hoptimus": _ModelConfig(
+        repo="bioptimus/H-optimus-1",
+        dim=1536,
+        loader="timm",
+        timm_kwargs={"init_values": 1e-5, "dynamic_img_size": False},
         gated=True,
     ),
     "uni": _ModelConfig(
@@ -184,7 +192,7 @@ class FoundationModel(HistoBaseModel):
         if cfg.repo == "MahmoodLab/UNI2-h":
             kwargs = _uni2_kwargs()
         elif cfg.repo in ("paige-ai/Virchow", "paige-ai/Virchow2"):
-            kwargs = _swiglu_kwargs()
+            kwargs = {**_swiglu_kwargs(), "global_pool": "token"}
 
         hub_name = f"hf_hub:{cfg.repo}"
         print(f"  Loading {hub_name} from timm...")
@@ -235,19 +243,23 @@ def get_foundation_model(
     num_classes: int,
     dropout: float = 0.0,
     freeze_backbone: bool = False,
+    pretrained: bool = True,
 ) -> FoundationModel:
     """
     Instantiate a histology foundation model.
 
     Args:
-        name: model key (gigapath, uni, uni2, phikon, phikon2, virchow, virchow2)
+        name: model key (gigapath, hoptimus, uni, uni2, phikon, phikon2, virchow, virchow2)
         num_classes: number of output classes
         dropout: head dropout (0.2 is a sensible default)
         freeze_backbone: freeze backbone for linear probing
+        pretrained: always True for foundation models (warning printed if False)
 
     Returns:
         FoundationModel instance
     """
+    if not pretrained:
+        print(f"  WARNING: Foundation models are always loaded with pretrained weights. Ignoring pretrained=False.")
     if name not in _FOUNDATION_MODELS:
         raise ValueError(
             f"Unknown foundation model '{name}'. "

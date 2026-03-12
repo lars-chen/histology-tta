@@ -147,6 +147,7 @@ def get_dinov2_model(
     dropout: float = 0.0,
     freeze_backbone: bool = True,
     use_registers: bool = False,
+    pretrained: bool = True,
 ) -> DINOv2Model:
     """
     Instantiate a DINOv2 model.
@@ -162,6 +163,8 @@ def get_dinov2_model(
     Returns:
         DINOv2Model instance
     """
+    if not pretrained:
+        print(f"  WARNING: DINOv2 models are always loaded with pretrained weights. Ignoring pretrained=False.")
     if name not in _ALIASES:
         raise ValueError(
             f"Unknown DINOv2 variant '{name}'. "
