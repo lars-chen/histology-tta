@@ -30,11 +30,13 @@ class HistoBaseModel(nn.Module, ABC):
         num_classes: int,
         dropout: float = 0.0,
         freeze_backbone: bool = False,
+        pretrained: bool = True,
     ):
         super().__init__()
         self.num_classes = num_classes
         self.dropout_rate = dropout
         self._freeze_backbone = freeze_backbone
+        self._pretrained = pretrained
 
         self.backbone = self.build_backbone()
 

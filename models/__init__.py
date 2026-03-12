@@ -9,13 +9,15 @@ DINOv2 models:       dinov2_s, dinov2_b, dinov2_l, dinov2_g
 ConvNeXt V2 models:  convnextv2_tiny, convnextv2_small, convnextv2_base,
                      convnextv2_large, convnextv2_huge
                      (short aliases: convnextv2_t/s/b/l/h)
-Foundation models:   gigapath, uni, uni2, phikon, phikon2, virchow, virchow2
+Foundation models:   gigapath, hoptimus, uni, uni2, phikon, phikon2, virchow, virchow2
+Equivariant models:  d4wrn (D4 Wide ResNet — trained from scratch)
 """
 
 from .torchvision_models import get_torchvision_model, _MODEL_REGISTRY
 from .dinov2 import get_dinov2_model
 from .convnextv2 import get_convnextv2_model, _ALIASES as _CONVNEXTV2_ALIASES
 from .foundation import get_foundation_model, _FOUNDATION_MODELS
+from .equivariant import get_equivariant_model, _EQUIVARIANT_MODELS
 
 _DINOV2_MODELS = {"dinov2_s", "dinov2_b", "dinov2_l", "dinov2_g"}
 _CONVNEXTV2_MODELS = set(_CONVNEXTV2_ALIASES.keys())
@@ -26,6 +28,7 @@ def get_model(
     num_classes: int,
     dropout: float = 0.2,
     freeze_backbone: bool = False,
+    pretrained: bool = True,
 ):
     """
     Instantiate any supported model by name.
@@ -36,16 +39,26 @@ def get_model(
         num_classes: number of output classes
         dropout: head dropout probability
         freeze_backbone: if True, backbone weights are frozen (linear probe)
+        pretrained: if True, load pretrained weights (default). False = random init.
 
     Returns:
         HistoBaseModel instance ready for training
     """
+    if name in _EQUIVARIANT_MODELS:
+        return get_equivariant_model(
+            name,
+            num_classes=num_classes,
+            dropout=dropout,
+            freeze_backbone=freeze_backbone,
+            pretrained=pretrained,
+        )
     if name in _DINOV2_MODELS:
         return get_dinov2_model(
             name,
             num_classes=num_classes,
             dropout=dropout,
             freeze_backbone=freeze_backbone,
+            pretrained=pretrained,
         )
     if name in _CONVNEXTV2_MODELS:
         return get_convnextv2_model(
@@ -53,6 +66,7 @@ def get_model(
             num_classes=num_classes,
             dropout=dropout,
             freeze_backbone=freeze_backbone,
+            pretrained=pretrained,
         )
     if name in _FOUNDATION_MODELS:
         return get_foundation_model(
@@ -60,10 +74,12 @@ def get_model(
             num_classes=num_classes,
             dropout=dropout,
             freeze_backbone=freeze_backbone,
+            pretrained=pretrained,
         )
     return get_torchvision_model(
         name,
         num_classes=num_classes,
         dropout=dropout,
         freeze_backbone=freeze_backbone,
+        pretrained=pretrained,
     )
