@@ -6,6 +6,7 @@ All models return pooled (B, feature_dim) feature vectors compatible with
 HistoBaseModel.
 
 Available models:
+  ctranspath (28M params,  feature_dim=768)  — CTransPath Swin-T (SSL, ungated)
   gigapath   (1.1B params, feature_dim=1536) — Prov-GigaPath ViT-g
   hoptimus   (1.1B params, feature_dim=1536) — H-optimus-1 ViT-g (bioptimus)
   uni        (300M params, feature_dim=1024) — UNI ViT-L
@@ -64,6 +65,58 @@ class _ModelConfig:
     gated: bool = False
 
 
+def _build_ctranspath_backbone() -> nn.Module:
+    """Load CTransPath (Swin-T with custom convolutional patch embedding).
+
+    The checkpoint uses an older Swin convention where PatchMerging is stored
+    in layers[N] but timm now places it in layers[N+1].  The norm sizes match
+    numerically after the shift (4×C_in == 2×C_out since C_out=2×C_in), so a
+    simple key remap is sufficient.
+    """
+    import re
+    import timm
+    from huggingface_hub import hf_hub_download
+    from safetensors.torch import load_file
+
+    backbone = timm.create_model("swin_tiny_patch4_window7_224", pretrained=False, num_classes=0)
+
+    # Replace standard single-conv patch embed with CTransPath's Conv-BN-Conv-BN-Conv stem
+    # Architecture derived from checkpoint weight shapes: 3→12→24→96, strides 2,2,1
+    backbone.patch_embed.proj = nn.Sequential(
+        nn.Conv2d(3,  12, kernel_size=3, stride=2, padding=1, bias=False),
+        nn.BatchNorm2d(12),
+        nn.GELU(),
+        nn.Conv2d(12, 24, kernel_size=3, stride=2, padding=1, bias=False),
+        nn.BatchNorm2d(24),
+        nn.GELU(),
+        nn.Conv2d(24, 96, kernel_size=1, stride=1, bias=True),
+    )
+
+    repo = "1aurent/swin_tiny_patch4_window7_224.CTransPath"
+    print(f"  Loading {repo} from HuggingFace Hub...")
+    weights_path = hf_hub_download(repo, "model.safetensors")
+    sd = load_file(weights_path)
+
+    # Remap: checkpoint stores downsample at layers.N, timm expects it at layers.(N+1)
+    remapped = {}
+    for k, v in sd.items():
+        new_k = re.sub(r"^layers\.(\d+)\.downsample",
+                       lambda m: f"layers.{int(m.group(1)) + 1}.downsample", k)
+        remapped[new_k] = v
+
+    # Load with strict=False to skip non-parameter buffers (relative_position_index,
+    # attn_mask) that are recomputed at runtime and not saved in safetensors format.
+    buffer_names = {n for n, _ in backbone.named_buffers()}
+    missing, unexpected = backbone.load_state_dict(remapped, strict=False)
+    real_missing = [k for k in missing if k not in buffer_names]
+    if real_missing:
+        print(f"  WARNING: genuinely missing keys: {real_missing}")
+    if unexpected:
+        print(f"  WARNING: unexpected keys: {unexpected}")
+
+    return backbone
+
+
 def _swiglu_kwargs() -> dict[str, Any]:
     """Kwargs needed for Virchow-family models (SwiGLU MLP)."""
     from timm.layers import SwiGLUPacked
@@ -90,6 +143,11 @@ def _uni2_kwargs() -> dict[str, Any]:
 
 
 _FOUNDATION_MODELS: dict[str, _ModelConfig] = {
+    "ctranspath": _ModelConfig(
+        repo="1aurent/swin_tiny_patch4_window7_224.CTransPath",
+        dim=768,
+        loader="timm",
+    ),
     "gigapath": _ModelConfig(
         repo="prov-gigapath/prov-gigapath",
         dim=1536,
@@ -165,6 +223,7 @@ class FoundationModel(HistoBaseModel):
         num_classes: int,
         dropout: float = 0.0,
         freeze_backbone: bool = False,
+        mlp_hidden: int = None,
     ):
         self._config = config
         # super().__init__ calls build_backbone(), so _config must be set first
@@ -172,6 +231,7 @@ class FoundationModel(HistoBaseModel):
             num_classes=num_classes,
             dropout=dropout,
             freeze_backbone=freeze_backbone,
+            mlp_hidden=mlp_hidden,
         )
 
     def build_backbone(self) -> nn.Module:
@@ -186,6 +246,9 @@ class FoundationModel(HistoBaseModel):
 
     def _build_timm_backbone(self, cfg: _ModelConfig) -> nn.Module:
         import timm
+
+        if cfg.repo == "1aurent/swin_tiny_patch4_window7_224.CTransPath":
+            return _build_ctranspath_backbone()
 
         # Build kwargs — some models need lazily-constructed kwargs
         kwargs = dict(cfg.timm_kwargs)
@@ -244,12 +307,13 @@ def get_foundation_model(
     dropout: float = 0.0,
     freeze_backbone: bool = False,
     pretrained: bool = True,
+    mlp_hidden: int = None,
 ) -> FoundationModel:
     """
     Instantiate a histology foundation model.
 
     Args:
-        name: model key (gigapath, hoptimus, uni, uni2, phikon, phikon2, virchow, virchow2)
+        name: model key (ctranspath, gigapath, hoptimus, uni, uni2, phikon, phikon2, virchow, virchow2)
         num_classes: number of output classes
         dropout: head dropout (0.2 is a sensible default)
         freeze_backbone: freeze backbone for linear probing
@@ -271,6 +335,7 @@ def get_foundation_model(
         num_classes=num_classes,
         dropout=dropout,
         freeze_backbone=freeze_backbone,
+        mlp_hidden=mlp_hidden,
     )
     print(f"Loaded {model}")
     return model

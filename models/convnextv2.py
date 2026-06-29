@@ -79,6 +79,7 @@ class ConvNeXtV2Model(HistoBaseModel):
         dropout: float = 0.0,
         freeze_backbone: bool = False,
         pretrained: bool = True,
+        mlp_hidden: int = None,
     ):
         self._timm_name = timm_name
         self._dim = _CONVNEXTV2_DIMS[timm_name]
@@ -88,6 +89,7 @@ class ConvNeXtV2Model(HistoBaseModel):
             num_classes=num_classes,
             dropout=dropout,
             freeze_backbone=freeze_backbone,
+            mlp_hidden=mlp_hidden,
         )
 
     def build_backbone(self) -> nn.Module:
@@ -114,6 +116,7 @@ def get_convnextv2_model(
     dropout: float = 0.0,
     freeze_backbone: bool = False,
     pretrained: bool = True,
+    mlp_hidden: int = None,
 ) -> ConvNeXtV2Model:
     """
     Instantiate a ConvNeXt V2 model.
@@ -141,6 +144,7 @@ def get_convnextv2_model(
         dropout=dropout,
         freeze_backbone=freeze_backbone,
         pretrained=pretrained,
+        mlp_hidden=mlp_hidden,
     )
     print(f"Loaded {model}")
     return model

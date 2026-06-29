@@ -29,6 +29,7 @@ def get_model(
     dropout: float = 0.2,
     freeze_backbone: bool = False,
     pretrained: bool = True,
+    mlp_hidden: int = None,
 ):
     """
     Instantiate any supported model by name.
@@ -40,6 +41,8 @@ def get_model(
         dropout: head dropout probability
         freeze_backbone: if True, backbone weights are frozen (linear probe)
         pretrained: if True, load pretrained weights (default). False = random init.
+        mlp_hidden: if set, use a 2-layer MLP head (Linear→BN→ReLU→Dropout→Linear)
+                    with this many hidden units instead of a single linear layer.
 
     Returns:
         HistoBaseModel instance ready for training
@@ -59,6 +62,7 @@ def get_model(
             dropout=dropout,
             freeze_backbone=freeze_backbone,
             pretrained=pretrained,
+            mlp_hidden=mlp_hidden,
         )
     if name in _CONVNEXTV2_MODELS:
         return get_convnextv2_model(
@@ -67,6 +71,7 @@ def get_model(
             dropout=dropout,
             freeze_backbone=freeze_backbone,
             pretrained=pretrained,
+            mlp_hidden=mlp_hidden,
         )
     if name in _FOUNDATION_MODELS:
         return get_foundation_model(
@@ -75,6 +80,7 @@ def get_model(
             dropout=dropout,
             freeze_backbone=freeze_backbone,
             pretrained=pretrained,
+            mlp_hidden=mlp_hidden,
         )
     return get_torchvision_model(
         name,
@@ -82,4 +88,5 @@ def get_model(
         dropout=dropout,
         freeze_backbone=freeze_backbone,
         pretrained=pretrained,
+        mlp_hidden=mlp_hidden,
     )

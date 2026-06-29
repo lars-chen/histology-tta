@@ -152,12 +152,28 @@ def train(
             best_val_acc = val_stats["acc"]
             epochs_no_improve = 0
             ckpt_path = ckpt_dir / f"{model_name}_best.pt"
-            torch.save({
-                "epoch": epoch,
-                "model_state_dict": model.state_dict(),
-                "val_acc": best_val_acc,
-                "optimizer_state_dict": optimizer.state_dict(),
-            }, ckpt_path)
+            mlp_hidden = getattr(model, "mlp_hidden", None)
+            # Save head-only when backbone is truly frozen (no backbone grad)
+            backbone_frozen = (
+                hasattr(model, "backbone")
+                and not any(p.requires_grad for p in model.backbone.parameters())
+            )
+            if backbone_frozen and hasattr(model, "classifier"):
+                torch.save({
+                    "epoch": epoch,
+                    "classifier_state_dict": model.classifier.state_dict(),
+                    "head_only": True,
+                    "mlp_hidden": mlp_hidden,
+                    "val_acc": best_val_acc,
+                }, ckpt_path)
+            else:
+                torch.save({
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "mlp_hidden": mlp_hidden,
+                    "val_acc": best_val_acc,
+                    "optimizer_state_dict": optimizer.state_dict(),
+                }, ckpt_path)
             print(f"  ✓ Saved best model (val_acc={best_val_acc:.4f}) → {ckpt_path}")
         else:
             epochs_no_improve += 1

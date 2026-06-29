@@ -10,7 +10,6 @@
     - [ ] Segmentation
     - [ ] Tracking
 - [ ] Make sure all models run:
-    - [x] VGG16
     - [x] ResNet-18
     - [x] ResNet-50
     - [ ] EfficientNet-B7
@@ -18,7 +17,7 @@
     - [x] DINOV2-b
     - [x] DINOV2-l
     - [x] DINOV2-g
-    - [ ] ConvNeXt
+    - [x] ConvNeXt
 - [ ] Make sure all datasets accessible
     - [ ] NCT-CRC-100k
     - [ ] NCT-CRC-7k
@@ -41,20 +40,11 @@
 
 - [x] Add finetuning mode to `trainer.py` (unfreeze backbone, lower LR)
 - [x] Train finetuned versions of each model
-- [ ] Run `evaluate_tta.py` with same TTA strategies as linear probe runs
 - [x] Compare TTA delta: linear probe vs finetuned
 - [x] Check per-class TTA delta — does finetuning close the gap uniformly?
 
 ---
 
-## Experiment 2 — Training Augmentation vs TTA Benefit
-> Hypothesis: TTA delta decreases as training augmentation strength increases, but doesn't reach zero.
-
-- [ ] Define augmentation levels: none, light, aggressive (current)
-- [ ] Retrain linear probes at each augmentation level (frozen backbone)
-- [ ] Evaluate each with and without TTA
-- [ ] Plot TTA delta as a function of augmentation strength
-- [ ] Check if the relationship is consistent across model families (CNN vs ViT)
 
 ---
 

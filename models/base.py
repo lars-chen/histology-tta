@@ -31,20 +31,30 @@ class HistoBaseModel(nn.Module, ABC):
         dropout: float = 0.0,
         freeze_backbone: bool = False,
         pretrained: bool = True,
+        mlp_hidden: Optional[int] = None,
     ):
         super().__init__()
         self.num_classes = num_classes
         self.dropout_rate = dropout
         self._freeze_backbone = freeze_backbone
         self._pretrained = pretrained
+        self.mlp_hidden = mlp_hidden
 
         self.backbone = self.build_backbone()
 
-        # Simple linear head; easy to swap for MLP
-        self.classifier = nn.Sequential(
-            nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
-            nn.Linear(self.feature_dim, num_classes),
-        )
+        if mlp_hidden is not None:
+            self.classifier = nn.Sequential(
+                nn.Linear(self.feature_dim, mlp_hidden),
+                nn.BatchNorm1d(mlp_hidden),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
+                nn.Linear(mlp_hidden, num_classes),
+            )
+        else:
+            self.classifier = nn.Sequential(
+                nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
+                nn.Linear(self.feature_dim, num_classes),
+            )
 
         if freeze_backbone:
             self._freeze()

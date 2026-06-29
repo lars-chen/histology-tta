@@ -380,13 +380,12 @@ def get_dataloaders(
     class_weights is a tensor of shape (num_classes,) with inverse-frequency
     weights computed from the training split, suitable for CrossEntropyLoss.
     """
-    # MHIST: local dataset, not in HF registry
+    # Local datasets not in HF registry
     if name == "mhist":
         return _get_mhist_dataloaders(
             train_transform, val_transform, val_fraction, batch_size,
             num_workers, seed,
         )
-
     train_ds = HistoDataset(name, split="train", transform=train_transform, cache_dir=cache_dir)
     num_classes = train_ds.num_classes
 
