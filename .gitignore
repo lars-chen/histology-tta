@@ -49,6 +49,8 @@ convert_checkpoints.py
 
 camelyon17_features/
 panda_features/
+/camelyon17/
+/panda/
 
 # Figures
 /figures/
