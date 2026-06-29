@@ -51,5 +51,4 @@ camelyon17_features/
 panda_features/
 
 # Figures
-figures/wsi_heatmaps/
-figures/panda_wsi_heatmaps/
+/figures/
