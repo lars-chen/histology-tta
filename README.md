@@ -1,215 +1,190 @@
-# Histological TTA (Test-Time Augmentation)
+# When Do Histology Foundation Models Need Geometric Test-Time Augmentation?
 
-A research framework for training histology classifiers and evaluating the effect of test-time augmentation (TTA) across multiple model families and datasets.
+Code for the paper: *"When Do Histology Foundation Models Need Geometric Test-Time Augmentation? Evidence from Large-Scale Experiments"*
 
-## Project Structure
+> **TL;DR** — $D_4$ TTA is a reliable post hoc improvement for patch classification, but gains shrink from +1.98 pp for general-purpose models to +0.50 pp for histology FMs. Entropy-based selective TTA recovers most gains while augmenting only ~13% of patches. Patch-level gains do not transfer to slide-level MIL.
 
-```
-histology-tta/
-├── data/
-│   ├── data.py              # HuggingFace dataset loader (HistoDataset, get_dataloaders)
-│   ├── dataset.py           # Thin wrapper / re-exports for backwards compatibility
-│   └── transforms.py        # Train/val/TTA transform pipelines
-├── models/
-│   ├── __init__.py          # get_model() factory — dispatches by name
-│   ├── base.py              # Abstract HistoBaseModel (backbone + linear head)
-│   ├── torchvision_models.py  # ResNet-18/50, EfficientNet-B7, VGG-16, MobileNet-V3
-│   ├── dinov2.py            # DINOv2 ViT-S/B/L/G (facebookresearch/dinov2)
-│   └── convnextv2.py        # ConvNeXt V2 T/S/B/L/H (timm)
-├── tta/
-│   ├── augmentations.py     # Histology TTA strategies (flips, D4, D4+color)
-│   └── aggregator.py        # Prediction aggregation (mean, vote, confidence)
-├── utils/
-│   ├── trainer.py           # Training loop with AMP, early stopping, checkpointing
-│   ├── metrics.py           # Per-class accuracy and F1
-│   └── plot_results.py      # Load JSON results → publication figures
-├── scripts/                 # SLURM job scripts (one per model × training mode)
-├── train.py                 # Training entry point
-├── evaluate_tta.py          # TTA evaluation entry point
-└── smoke_test.py            # Sanity check (synthetic data, no download needed)
-```
+Code: [https://github.com/lars-chen/histology-tta](https://github.com/lars-chen/histology-tta)
+
+---
 
 ## Setup
 
 ```bash
 uv venv .venv
 source .venv/bin/activate
-uv pip install torch torchvision datasets timm huggingface_hub pillow pyyaml tqdm scikit-learn matplotlib pandas
+uv pip install torch torchvision datasets timm huggingface_hub pillow \
+    pyyaml tqdm scikit-learn matplotlib pandas escnn einops
 ```
 
-## Datasets
+Set `HF_CACHE_DIR` to control HuggingFace cache location.
 
-| Key | HuggingFace repo | Train split | Test split | Classes |
-|---|---|---|---|---|
-| `tcga-ut` | `dakomura/tcga-ut` | `train` | `test` | 31 |
-| `nct-crc-100k` | `1aurent/NCT-CRC-HE` | `NCT_CRC_HE_100K` | `CRC_VAL_HE_7K` | 9 |
-| `nct-crc-nonorm` | `1aurent/NCT-CRC-HE` | `NCT_CRC_HE_100K_NONORM` | `CRC_VAL_HE_7K` | 9 |
-
-Datasets are downloaded from HuggingFace Hub on first use and cached locally.
-Set `HF_CACHE_DIR` to override the default cache location, or pass `--cache_dir`.
-
-For TCGA-UT the validation split is done at the **patient level** (parsed from the `__key__` TCGA barcode) to prevent slide-leakage between train and val.
+---
 
 ## Models
 
-### CNN (torchvision)
-| Model | Params |
-|---|---|
-| `resnet18` | 11 M |
-| `resnet50` | 25 M |
-| `vgg16` | 138 M |
-| `efficientnet_b7` | 66 M |
-| `mobilenet_v3` | 5 M |
+### Histology Foundation Models (frozen backbone, linear probe)
+| Model | Params | Arch |
+|---|---|---|
+| `ctranspath` | 28 M | Swin-T/14 |
+| `phikon` | 86 M | ViT-B/16 |
+| `phikon2` | 300 M | ViT-L/16 |
+| `uni` | 300 M | ViT-L/16 |
+| `uni2` | 681 M | ViT-H/16 |
+| `virchow` | 632 M | ViT-H/14 |
+| `virchow2` | 632 M | ViT-H/14 |
+| `gigapath` | 1.1 B | ViT-g/14 |
+| `hoptimus` | 1.1 B | ViT-g/14 |
 
-### Vision Transformer — DINOv2
+### General-Purpose Models (frozen or finetuned)
 | Model | Params |
 |---|---|
+| `resnet18` | 12 M |
+| `resnet50` | 26 M |
+| `convnextv2_tiny` | 28 M |
+| `convnextv2_base` | 89 M |
 | `dinov2_s` | 22 M |
 | `dinov2_b` | 86 M |
-| `dinov2_l` | 307 M |
-| `dinov2_g` | 1.1 B |
 
-### ConvNeXt V2 (timm) — short aliases in parentheses
+### Equivariant Reference
 | Model | Params |
 |---|---|
-| `convnextv2_tiny` (`convnextv2_t`) | 28 M |
-| `convnextv2_small` (`convnextv2_s`) | 50 M |
-| `convnextv2_base` (`convnextv2_b`) | 89 M |
-| `convnextv2_large` (`convnextv2_l`) | 198 M |
-| `convnextv2_huge` (`convnextv2_h`) | 660 M |
+| `d4wrn` | 12 M — architecturally $D_4$-invariant Wide ResNet |
 
-All models share the same interface: `get_model(name, num_classes, freeze_backbone=...)`.
+---
 
-**Training modes**
-- `cls` — frozen backbone, linear classifier head only (linear probe)
-- `ft` — full fine-tune of backbone + head
+## Datasets
 
-## Quick Start
+| Key | Source | Classes | Test set |
+|---|---|---|---|
+| `tcga-ut` | HF: `dakomura/tcga-ut` | 31 | 40.9k tiles |
+| `nct-crc-100k` | HF: `1aurent/NCT-CRC-HE` | 9 | 7.2k tiles |
+| `nct-crc-nonorm` | HF: `1aurent/NCT-CRC-HE` (no stain norm) | 9 | 7.2k tiles |
+| `mhist` | Local: `data/mhist/` | 2 | 977 tiles |
 
-### Smoke test (no data download)
+WSI datasets (not downloaded via HF):
+- **Camelyon17** — 500 lymph-node WSIs, 5 centers
+- **PANDA** — prostate biopsy WSIs with Gleason-grade annotations
+
+---
+
+## Pipeline
+
+### 1. Extract embeddings (frozen FM backbones)
+
+Pre-extract all 8 $D_4$ views per patch once, cache to disk:
+
 ```bash
-python smoke_test.py
+python extract_embeddings.py --model phikon2 --dataset tcga-ut --amp
 ```
 
-### Train
+### 2. Train lightweight classifier heads
+
 ```bash
-# Linear probe (frozen backbone)
-python train.py --model dinov2_b --dataset tcga-ut --freeze_backbone --epochs 10
+# Linear probe
+python train_probe.py --model phikon2 --dataset tcga-ut --head linear --seeds 0 1 2 3 42
 
-# Full fine-tune with AMP
-python train.py --model convnextv2_base --dataset nct-crc-100k --epochs 20 --lr 1e-5 --amp
-
-# Two-stage: linear probe then unfreeze backbone
-python train.py --model dinov2_l --dataset tcga-ut --freeze_backbone --unfreeze_after 5 --epochs 20 --amp
+# MLP probes and kNN
+python train_probe.py --model phikon2 --dataset tcga-ut --head mlp1h mlp2h knn
 ```
 
-Key flags:
+### 3. Evaluate TTA
 
-| Flag | Default | Description |
-|---|---|---|
-| `--model` | `resnet18` | Model name |
-| `--dataset` | `tcga-ut` | Dataset key |
-| `--freeze_backbone` | off | Linear probe mode |
-| `--unfreeze_after N` | off | Unfreeze backbone after N epochs |
-| `--lr` | `1e-4` | Backbone LR (head uses 10×) |
-| `--amp` | off | Mixed-precision (fp16) |
-| `--patience N` | `0` | Early stopping (0 = disabled) |
-| `--checkpoint_dir` | `checkpoints/` | Where to save `.pt` files |
-| `--cache_dir` | HF default | HuggingFace dataset cache |
-| `--seed` | `42` | Random seed (submit separate jobs with different seeds for variance) |
-
-Checkpoints are saved as `{dataset}_{model}_{frozen|finetuned}_seed{seed}_best.pt`.
-
-### Evaluate with TTA
 ```bash
 python evaluate_tta.py \
-    --model convnextv2_base \
-    --checkpoint checkpoints/tcga-ut_convnextv2_base_finetuned_seed42_best.pt \
+    --model phikon2 \
+    --checkpoint checkpoints/tcga-ut_phikon2_frozen_aug_seed0_best.pt \
     --dataset tcga-ut \
-    --tta_strategies none flips d4 d4_color \
-    --aggregations mean vote confidence
+    --tta_strategies none flips d4 \
+    --aggregations mean logit_mean vote confidence \
+    --amp
 ```
 
-For variance estimation, train and evaluate with multiple seeds (submit as separate SLURM jobs for parallelism):
-```bash
-for SEED in 42 137 2024; do
-    # Train
-    python train.py \
-        --model convnextv2_base \
-        --dataset tcga-ut \
-        --epochs 20 --lr 1e-5 --amp --patience 2 \
-        --seed $SEED
-
-    # Evaluate
-    python evaluate_tta.py \
-        --model convnextv2_base \
-        --checkpoint checkpoints/tcga-ut_convnextv2_base_finetuned_seed${SEED}_best.pt \
-        --dataset tcga-ut --seed $SEED \
-        --tta_strategies none flips d4 d4_color \
-        --aggregations mean vote confidence
-done
-```
-
-Each run produces `tta_results_{dataset}_{model}_{frozen|finetuned}_seed{seed}.json` with one row per (strategy, aggregation) including accuracy, balanced accuracy, macro-F1, per-class F1, and corrected/corrupted counts. Aggregate across seed JSON files externally for mean±std.
-
-### Plot results
-```bash
-# All JSON files in current directory → figures/
-python utils/plot_results.py
-
-# Specific files, custom output directory
-python utils/plot_results.py tta_results_tcga-ut_*.json --out_dir figures/tcga/
-
-# Use plain accuracy instead of balanced accuracy
-python utils/plot_results.py --metric acc
-```
-
-Figures produced:
-
-| File | Description |
-|---|---|
-| `acc_by_strategy_{dataset}_{metric}.png` | Grouped bar chart per (model, mode) |
-| `heatmap_{dataset}_{metric}.png` | Model × strategy grid (best aggregation per cell) |
-| `correction_{dataset}.png` | TTA corrected vs. corrupted samples per strategy |
-| `per_class_f1_{dataset}.png` | Per-class F1 heatmap for best strategy |
-
-## SLURM Scripts
-
-Pre-configured scripts live in `scripts/`. Naming convention:
-
-```
-scripts/train_{model}_{cls|ft}.sh
-```
-
-Each script trains on all three datasets sequentially, then runs TTA evaluation on each.
+For general-purpose models, train end-to-end with standard augmentation:
 
 ```bash
-sbatch scripts/train_dinov2_b_cls.sh
-sbatch scripts/train_convnextv2_b_ft.sh
+python train.py --model convnextv2_base --dataset tcga-ut --epochs 20 --amp
 ```
 
-Set `HF_CACHE_DIR` before submitting to override the cache path:
+### 4. Compile results and generate tables
+
 ```bash
-HF_CACHE_DIR=/path/to/cache sbatch scripts/train_dinov2_b_ft.sh
+python compile_results.py          # patch-level results → figures/canonical_results.csv
+python compile_wsl_results.py      # WSI results
+python utils/generate_tables.py    # regenerate paper/latex/tables/*.tex
 ```
+
+### 5. Generate figures
+
+Each figure has a dedicated script in `utils/`:
+
+```bash
+python utils/plot_figure3.py       # Figure 3: entropy / correction / corruption
+python utils/plot_figure4.py       # Figure 4: selective TTA Pareto curves
+python utils/plot_graphabs_inset.py  # Figure 1 inset
+```
+
+---
 
 ## TTA Strategies
 
 | Strategy | Views | Description |
 |---|---|---|
-| `none` | 1 | No augmentation (baseline) |
-| `flips` | 4 | Horizontal + vertical flips |
-| `d4` | 8 | Full dihedral group (4 rotations × 2 flips) |
-| `d4_color` | 8 | D4 + color jitter (hue/saturation) |
+| `none` | 1 | Baseline (single view) |
+| `flips` ($V_4$) | 4 | Klein four-group: H-flip, V-flip, 180° |
+| `d4` ($D_4$) | 8 | Full dihedral group: 4 rotations × identity/H-flip |
 
-Aggregation methods: `mean` (average logits), `vote` (majority class), `confidence` (highest max-softmax).
+Aggregation methods: `logit_mean` (default), `mean`, `confidence`, `vote`.
 
-## Histological Symmetries
+### Selective TTA
 
-Histology images have well-known symmetries that TTA can exploit:
+Apply $D_4$ only to high-entropy samples:
 
-| Symmetry | Rationale | TTA strategy |
-|---|---|---|
-| Rotational (D4) | H&E slides have no canonical orientation | `d4`, `d4_color` |
-| Color jitter | Stain variation across labs and batches | `d4_color` |
-| Horizontal / vertical flip | Tissue has no inherent handedness | `flips`, `d4` |
+```python
+# threshold t ∈ [0,1]; t=0.3 augments ~13% of patches for histology FMs
+f_sel(x) = f(x)                    if H(f(x)) / ln(C) ≤ t
+           (1/|G|) Σ f(g·x)        otherwise
+```
+
+---
+
+## SLURM Scripts
+
+Pre-configured scripts in `scripts/`. Naming convention: `train_{model}_{cls|ft}.sh`.
+
+```bash
+sbatch scripts/train_phikon2_cls.sh
+sbatch scripts/train_convnextv2_b_ft.sh
+sbatch scripts/train_probe_array.sh   # array job for all frozen FMs
+```
+
+---
+
+## Smoke Test
+
+```bash
+python smoke_test.py   # synthetic data, no download needed; covers D4WRN invariance check
+```
+
+---
+
+## Repository Layout
+
+```
+histology-tta/
+├── data/              # Dataset loaders (HuggingFace + MHIST)
+├── models/            # Model factory: FM backbones, general-purpose, D4WRN
+├── tta/               # TTA augmentations + aggregation strategies
+├── utils/             # Plotting scripts, table generation, trainer, metrics
+├── scripts/           # SLURM job scripts
+├── analysis_*.py      # Post-hoc analyses (orbit geometry, flip discrimination, etc.)
+├── paper/             # LaTeX source + figures/tables for submission
+│   └── latex/
+│       ├── figures/   # figure2.pdf, figure3_journal.pdf, figure4_selective_pareto.pdf
+│       └── tables/    # full_data_model.tex, table_head_comp.tex
+├── train.py           # End-to-end training (general-purpose + finetuned)
+├── train_probe.py     # Probe training on cached embeddings
+├── extract_embeddings.py
+├── evaluate_tta.py
+└── compile_results.py
+```
