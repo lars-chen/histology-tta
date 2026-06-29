@@ -1,79 +1,60 @@
-# TTA Research — Experiment TODO List
+# TTA Research — TODO
 
 ---
 
-## General To-Do's
-> Things to expand on
-- [ ] Think about more experiments or tasks to add
-- [ ] Consider range of classification labels (binary, smaller classes, harder data)
-- [ ] Consider other tasks than classification 
-    - [ ] Segmentation
-    - [ ] Tracking
-- [ ] Make sure all models run:
-    - [x] ResNet-18
-    - [x] ResNet-50
-    - [ ] EfficientNet-B7
-    - [x] DINOV2-s
-    - [x] DINOV2-b
-    - [x] DINOV2-l
-    - [x] DINOV2-g
-    - [x] ConvNeXt
-- [ ] Make sure all datasets accessible
-    - [ ] NCT-CRC-100k
-    - [ ] NCT-CRC-7k
-    - [ ] NCT-CRC-NONORM
-    - [x] TCGA-UT
+## Paper status: near-complete draft
+
+Core results are in. Remaining items are polish / submission prep.
 
 ---
 
-## Experiment 0 — Baseline Instrumentation
-> Do this first — it unblocks all downstream experiments.
+## Submission blockers
 
-- [x] Add per-class accuracy / F1 logging to `metrics.py`
-- [ ] Log confusion matrix at evaluation time
-- [x] Save per-class TTA delta (TTA acc minus baseline acc per class)
-
----
-
-## Experiment 1 — TTA on Finetuned Models
-> Hypothesis: TTA delta shrinks after finetuning as augmentation invariance is baked into weights.
-
-- [x] Add finetuning mode to `trainer.py` (unfreeze backbone, lower LR)
-- [x] Train finetuned versions of each model
-- [x] Compare TTA delta: linear probe vs finetuned
-- [x] Check per-class TTA delta — does finetuning close the gap uniformly?
+- [ ] **`paper/latex/figures/graphabs.pdf`** — assemble Figure 1 (graphical abstract) from components:
+  - `figures/ga_d4variance_patient_096_node_0.pdf` — Camelyon17 WSI heatmap panel
+  - `figures/panels/p096_node0_*` — outcome / delta_p zoom panels
+  - `utils/plot_graphabs_inset.py` — bottom-right inset (TTA improvement dots + selective curves)
+  - Left panel: method schematic (needs Illustrator/Figma)
+- [ ] Fill MELBA metadata in `paper.tex`: `\melbaid`, `\doi`, `\melbaauthors`, `\melbaspecialissue`, `\datesubmitted`, `\datepublished`, `\melbayear`, `\firstpageno`, `\ShortHeadings`, `\volume`
+- [ ] Add bibliography file (`sample.bib`) to `paper/` 
+- [ ] Add `melba.cls` style file to `paper/`
+- [ ] Verify paper compiles end-to-end on Overleaf
 
 ---
 
+## Results to double-check
+
+- [ ] Confirm numbers in paper abstract match `figures/canonical_results.csv`:
+  - Histo FMs: +0.30 pp overall, +0.50 pp TCGA-UT
+  - General: +1.28 pp overall, +1.98 pp TCGA-UT
+  - D4WRN: +0.17 pp
+- [ ] Check selective TTA claims (t=0.3 → 13% samples, ~70% benefit recovered) against `figures/selective_gating_summary.csv`
+- [ ] Check agreement rate claims (97.0% FM, 91.2% general) against `figures/agreement_rate_summary.csv`
+- [ ] Check MPCS claims (FM 0.946, general 0.950, D4WRN ≈0.999) against `figures/orbit_tightness.csv`
+- [ ] Verify Camelyon17 AUC deltas (≤0.009) and PANDA kappa (0.901 vs 0.905) against `figures/camelyon17_tta.csv` / `figures/panda_tta.csv`
 
 ---
 
-## Experiment 3 — Per-Class TTA Analysis
-> Requires Experiment 0.
+## Figure polish
 
-- [ ] Identify which classes benefit most/least from TTA
-- [ ] Cross-reference with cancer types that are rotationally ambiguous
-- [ ] Check if low-sample classes benefit more or less
+- [ ] Figure 3 panel C: decide between `figure3_panel_c_v1.pdf` and `figure3_panel_c_v2.pdf`
+- [ ] Graphical abstract inset: run `utils/plot_graphabs_inset.py` to regenerate if data changed
 
 ---
 
-## Experiment 4 — Aggregation Strategy Comparison
-> Hypothesis: Mean probability aggregation outperforms majority vote and max, especially for ambiguous classes.
+## Done (paper-complete)
 
-- [ ] Benchmark all three aggregators (mean, max, vote) under identical TTA strategies
-- [ ] Compare across model families (CNN vs ViT)
-- [ ] Check if aggregation choice interacts with number of TTA views
-- [ ] Check per-class results — does vote hurt on ambiguous classes vs mean?
-
----
-
-## Experiment 5 — TTA on Published Histopathology Models
-> Core publishable contribution: show that SOTA histopathology models left performance on the table by not using TTA.
-
-- [ ] Identify target models — candidates: CONCH, UNI, PLIP
-  - [ ] Confirm none used TTA in their original evaluation protocol
-  - [ ] Confirm published benchmark numbers are reproducible on your datasets
-- [ ] Integrate each model as a frozen backbone in the existing pipeline
-- [ ] Run `evaluate_tta.py` with full TTA strategy sweep
-- [ ] Compare TTA delta against your general-purpose models (CNN / DINOv2)
-- [ ] Document delta relative to their published numbers — this is the headline result
+- [x] Benchmark 16 models × 4 patch datasets (linear probe + frozen backbone)
+- [x] V4 vs D4 strategy comparison, all 4 aggregation methods
+- [x] Frozen vs finetuned comparison (6 general-purpose models, 3 datasets)
+- [x] Entropy / correction / corruption analysis (Figure 3)
+- [x] Selective TTA Pareto curves (Figure 4)
+- [x] Orbit tightness (MPCS) analysis
+- [x] Flip discrimination analysis
+- [x] Camelyon17 LOPO patch-Dice + ABMIL MIL evaluation
+- [x] PANDA patch probe + ABMIL evaluation
+- [x] Head comparison (linear / MLP-1h / MLP-2h / kNN)
+- [x] D4WRN equivariant reference model
+- [x] Table generation (`utils/generate_tables.py`)
+- [x] All figures generated and saved to `figures/`
+- [x] `paper/latex/` structure set up (figures 2–4, both tables)
