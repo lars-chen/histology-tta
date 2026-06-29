@@ -6,6 +6,7 @@ aggregate them into a single prediction.
 
 Strategies:
   mean       — average probabilities (works best in practice)
+  logit_mean — average logits then softmax (avoids Jensen's inequality inflation)
   max        — take the maximum probability per class
   vote       — hard majority vote on argmax
   confidence — weight by max confidence of each view
@@ -25,7 +26,7 @@ def aggregate_predictions(
 
     Args:
         logits_list: list of (B, C) tensors, one per TTA augmentation
-        strategy: "mean" | "max" | "vote" | "confidence"
+        strategy: "mean" | "logit_mean" | "max" | "vote" | "confidence"
 
     Returns:
         (B, C) aggregated probabilities (sum to 1 for mean/confidence/vote)
@@ -37,6 +38,9 @@ def aggregate_predictions(
 
     if strategy == "mean":
         return probs.mean(dim=0)         # (B, C)
+
+    elif strategy == "logit_mean":
+        return F.softmax(logits.mean(dim=0), dim=-1)  # (B, C)
 
     elif strategy == "max":
         return probs.max(dim=0).values   # (B, C)
@@ -61,7 +65,7 @@ def aggregate_predictions(
     else:
         raise ValueError(
             f"Unknown aggregation strategy '{strategy}'. "
-            "Choose from: mean, max, vote, confidence"
+            "Choose from: mean, logit_mean, max, vote, confidence"
         )
 
 

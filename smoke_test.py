@@ -146,6 +146,38 @@ def main():
             results[key] = acc
             print(f"  [{key}]  acc={acc:.4f}  ({len(tta_tfs)} views)")
 
+    # ---- 5. D4-equivariant model (tiny config for smoke test) ----
+    print(f"\n[5/5] Testing D4-equivariant WRN (tiny config)...")
+    from models.equivariant import D4WideResNet
+    d4_model = D4WideResNet(depth=10, widen_factor=1, num_classes=NUM_CLASSES,
+                            initial_stride=2).to(DEVICE)
+    print(f"  {d4_model}")
+
+    # Forward pass
+    x = torch.randn(2, 3, IMG_SIZE, IMG_SIZE, device=DEVICE)
+    with torch.no_grad():
+        d4_model.eval()
+        y = d4_model(x)
+        # Test D4 invariance: 90° rotation should give same output
+        x90 = x.rot90(1, (2, 3))
+        y90 = d4_model(x90)
+        max_diff = (y - y90).abs().max().item()
+    print(f"  Output shape: {y.shape}")
+    print(f"  Max diff after 90° rotation: {max_diff:.6f}")
+    print(f"  D4 invariant: {max_diff < 1e-4}")
+
+    # Quick train step
+    d4_model.train()
+    optimizer_d4 = AdamW(d4_model.param_groups(backbone_lr=1e-3, head_lr=1e-2),
+                         weight_decay=1e-4)
+    batch_x, batch_y = next(iter(train_loader))
+    batch_x, batch_y = batch_x.to(DEVICE), batch_y.to(DEVICE)
+    logits = d4_model(batch_x)
+    loss = nn.CrossEntropyLoss()(logits, batch_y)
+    loss.backward()
+    optimizer_d4.step()
+    print(f"  Train step loss: {loss.item():.4f}")
+
     print("\n" + "=" * 60)
     print("Smoke test PASSED — all pipeline components work correctly.")
     print("=" * 60)
