@@ -74,6 +74,8 @@ def parse_args():
                         help="Random seed (submit separate jobs with different seeds for variance estimation)")
     parser.add_argument("--train_subset", type=int, default=None,
                         help="Subsample training set to this many examples (for ablation studies)")
+    parser.add_argument("--mlp_hidden", type=int, default=None,
+                        help="Use a 2-layer MLP head with this many hidden units (default: single linear layer)")
     return parser.parse_args()
 
 
@@ -104,7 +106,8 @@ def train_one_seed(args, seed, device):
     aug_tag = "noaug" if args.no_augment else "aug"
     scratch_tag = "_scratch" if args.no_pretrained else ""
     subset_tag = f"_sub{args.train_subset}" if args.train_subset else ""
-    ckpt_name = f"{args.dataset}_{args.model}_{backbone_mode}_{aug_tag}{scratch_tag}{subset_tag}_seed{seed}"
+    head_tag = f"_mlp{args.mlp_hidden}" if args.mlp_hidden else ""
+    ckpt_name = f"{args.dataset}_{args.model}_{backbone_mode}_{aug_tag}{scratch_tag}{subset_tag}{head_tag}_seed{seed}"
 
     # --- Model ---
     model = get_model(
@@ -113,6 +116,7 @@ def train_one_seed(args, seed, device):
         dropout=args.dropout,
         freeze_backbone=args.freeze_backbone,
         pretrained=not args.no_pretrained,
+        mlp_hidden=args.mlp_hidden,
     ).to(device)
 
     # --- Optimizer: differential LRs ---

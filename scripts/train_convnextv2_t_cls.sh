@@ -1,16 +1,17 @@
 #!/bin/bash
-#SBATCH --job-name=histo_convnextv2_t_cls
+#SBATCH --job-name=histo_convnextv2_t_cls_seeds
 #SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
 #SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
 #SBATCH --partition=gpu4_medium
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=2
 #SBATCH --mem=64G
-#SBATCH --time=9:00:00
+#SBATCH --time=3-00:00:00
 
 # ---------------------------------------------------------------------------
 # Train ConvNeXt V2-Tiny (frozen backbone / linear probe, 28M params) on all
 # available datasets, then run TTA evaluation on datasets with a test split.
+# Seeds 0-3 (seed 42 already complete). Total N=5.
 #
 # Weights are downloaded from timm (Hugging Face) on first run.
 # ---------------------------------------------------------------------------
@@ -22,48 +23,54 @@ LOG_DIR=$PROJECT/logs
 CACHE_DIR=${HF_CACHE_DIR:-/gpfs/scratch/lpc8816/.cache/huggingface}
 
 MODEL=convnextv2_tiny
-BATCH_SIZE=32
-EVAL_BATCH_SIZE=64
+BATCH_SIZE=64
+EVAL_BATCH_SIZE=32
 EPOCHS=20
 DATASETS=(tcga-ut nct-crc-100k nct-crc-nonorm)
+SEEDS=(0 1 2 3)
 
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
 cd "$PROJECT" || exit 1
 
 echo "========================================"
 echo "Job: $SLURM_JOB_ID  Node: $SLURMD_NODENAME"
-echo "Model: $MODEL  | Batch: $BATCH_SIZE  | Epochs: $EPOCHS"
+echo "Model: $MODEL (frozen)  | Batch: $BATCH_SIZE  | Epochs: $EPOCHS"
+echo "Seeds: ${SEEDS[*]}"
 echo "Started: $(date)"
 echo "========================================"
 
-for DATASET in "${DATASETS[@]}"; do
-    echo ""
-    echo "-------- Training: $MODEL on $DATASET --------"
+for SEED in "${SEEDS[@]}"; do
+    for DATASET in "${DATASETS[@]}"; do
+        echo ""
+        echo "-------- Training: $MODEL on $DATASET (seed $SEED) --------"
 
-    $PYTHON train.py \
-        --model "$MODEL" \
-        --dataset "$DATASET" \
-        --epochs "$EPOCHS" \
-        --batch_size "$BATCH_SIZE" \
-        --freeze_backbone \
-        --patience 2 \
-        --num_workers 2 \
-        --amp \
-        --cache_dir "$CACHE_DIR" \
-        --checkpoint_dir "$CKPT_DIR"
+        $PYTHON train.py \
+            --model "$MODEL" \
+            --dataset "$DATASET" \
+            --epochs "$EPOCHS" \
+            --batch_size "$BATCH_SIZE" \
+            --freeze_backbone \
+            --patience 5 \
+            --num_workers 2 \
+            --amp \
+            --seed "$SEED" \
+            --cache_dir "$CACHE_DIR" \
+            --checkpoint_dir "$CKPT_DIR"
 
-    CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_aug_seed42_best.pt"
-    echo ""
-    echo "-------- TTA Evaluation: $MODEL on $DATASET --------"
-    $PYTHON evaluate_tta.py \
-        --model "$MODEL" \
-        --checkpoint "$CKPT" \
-        --dataset "$DATASET" \
-        --tta_strategies none flips d4 d4_color \
-        --aggregations mean vote confidence \
-        --batch_size "$EVAL_BATCH_SIZE" \
-        --amp \
-        --cache_dir "$CACHE_DIR"
+        CKPT="$CKPT_DIR/${DATASET}_${MODEL}_frozen_aug_seed${SEED}_best.pt"
+        echo ""
+        echo "-------- TTA Evaluation: $MODEL on $DATASET (seed $SEED) --------"
+        $PYTHON evaluate_tta.py \
+            --model "$MODEL" \
+            --checkpoint "$CKPT" \
+            --dataset "$DATASET" \
+            --tta_strategies none flips d4 d4_color \
+            --aggregations mean vote confidence \
+            --batch_size "$EVAL_BATCH_SIZE" \
+            --amp \
+            --seed "$SEED" \
+            --cache_dir "$CACHE_DIR"
+    done
 done
 
 echo ""

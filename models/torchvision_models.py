@@ -180,6 +180,7 @@ def get_torchvision_model(
     dropout: float = 0.2,
     freeze_backbone: bool = False,
     pretrained: bool = True,
+    mlp_hidden: int = None,
 ) -> HistoBaseModel:
     """
     Instantiate a torchvision-based model.
@@ -203,6 +204,7 @@ def get_torchvision_model(
         dropout=dropout,
         freeze_backbone=freeze_backbone,
         pretrained=pretrained,
+        mlp_hidden=mlp_hidden,
     )
     print(f"Loaded {model}")
     return model

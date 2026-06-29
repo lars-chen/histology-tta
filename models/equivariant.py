@@ -222,7 +222,7 @@ class D4WideResNet(torch.nn.Module):
 
         return enn.SequentialModule(*layers)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def extract_features(self, x: torch.Tensor) -> torch.Tensor:
         x = enn.GeometricTensor(x, self.in_type)
         out = self.conv1(x)
         out = self.layer1(out)
@@ -230,14 +230,17 @@ class D4WideResNet(torch.nn.Module):
         out = self.layer3(out)
         out = self.bn(out)
         out = self.relu(out)
-
-        # Extract tensor from GeometricTensor for standard pooling
         out = out.tensor
         b, c, w, h = out.shape
         out = F.avg_pool2d(out, (w, h))
-        out = out.view(b, -1)
-        out = self.linear(out)
-        return out
+        return out.view(b, -1)
+
+    @property
+    def classifier(self):
+        return self.linear
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear(self.extract_features(x))
 
     def param_groups(self, backbone_lr: float = 1e-4, head_lr: float = 1e-3):
         """Differential learning rates for optimizer."""

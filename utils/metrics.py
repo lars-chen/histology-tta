@@ -34,7 +34,7 @@ def per_class_metrics(labels, preds, class_names):
     for i, name in enumerate(class_names):
         mask    = labels == i
         support = int(mask.sum())
-        acc     = float((preds[mask] == i).sum() / support) if support > 0 else float("nan")
+        acc     = float((preds[mask] == i).sum() / support) if support > 0 else None
         rows.append({
             "class":   name,
             "acc":     round(acc, 4),

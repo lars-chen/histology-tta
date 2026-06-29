@@ -39,3 +39,17 @@ Thumbs.db
 .claude/
 
 __pycache__
+
+/data/mhist
+
+/embeddings
+/results
+
+convert_checkpoints.py
+
+camelyon17_features/
+panda_features/
+
+# Figures
+figures/wsi_heatmaps/
+figures/panda_wsi_heatmaps/

@@ -69,6 +69,7 @@ class DINOv2Model(HistoBaseModel):
         dropout: float = 0.0,
         freeze_backbone: bool = True,
         use_registers: bool = False,
+        mlp_hidden: int = None,
     ):
         self._hub_name = hub_name + ("_reg" if use_registers else "")
         self._dim = _DINOV2_DIMS[hub_name]
@@ -77,6 +78,7 @@ class DINOv2Model(HistoBaseModel):
             num_classes=num_classes,
             dropout=dropout,
             freeze_backbone=freeze_backbone,
+            mlp_hidden=mlp_hidden,
         )
 
     def build_backbone(self) -> nn.Module:
@@ -148,6 +150,7 @@ def get_dinov2_model(
     freeze_backbone: bool = True,
     use_registers: bool = False,
     pretrained: bool = True,
+    mlp_hidden: int = None,
 ) -> DINOv2Model:
     """
     Instantiate a DINOv2 model.
@@ -177,6 +180,7 @@ def get_dinov2_model(
         dropout=dropout,
         freeze_backbone=freeze_backbone,
         use_registers=use_registers,
+        mlp_hidden=mlp_hidden,
     )
     print(f"Loaded {model}")
     return model
