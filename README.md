@@ -109,9 +109,9 @@ python train.py --model convnextv2_base --dataset tcga-ut --epochs 20 --amp
 ### 4. Compile results and generate tables
 
 ```bash
-python compile_results.py          # patch-level results → figures/canonical_results.csv
-python compile_wsl_results.py      # WSI results
-python utils/generate_tables.py    # regenerate paper/latex/tables/*.tex
+python analysis/compile_results.py          # patch-level results → figures/canonical_results.csv
+python analysis/compile_wsl_results.py      # WSI results
+python utils/generate_tables.py             # regenerate paper/latex/tables/*.tex
 ```
 
 ### 5. Generate figures
@@ -150,21 +150,23 @@ f_sel(x) = f(x)                    if H(f(x)) / ln(C) ≤ t
 
 ## SLURM Scripts
 
-Pre-configured scripts in `scripts/`. Naming convention: `train_{model}_{cls|ft}.sh`.
+Pre-configured, parameterized scripts in `scripts/`:
 
 ```bash
-sbatch scripts/train_phikon2_cls.sh
-sbatch scripts/train_convnextv2_b_ft.sh
-sbatch scripts/train_probe_array.sh   # array job for all frozen FMs
+sbatch scripts/train_cls.sh phikon2                    # frozen linear probe + TTA eval
+sbatch scripts/train_cls.sh convnextv2_tiny --mlp       # frozen MLP-head probe
+sbatch scripts/train_ft.sh convnextv2_base              # full fine-tune + TTA eval
+sbatch scripts/extract_camelyon17.sh uni                # WSI feature extraction (array job)
+sbatch scripts/save_logits.sh tcga-ut                   # re-run eval, dump raw logits
+sbatch scripts/selective_tta.sh phikon2                 # selective-TTA threshold sweep
 ```
 
----
-
-## Smoke Test
-
-```bash
-python smoke_test.py   # synthetic data, no download needed; covers D4WRN invariance check
-```
+Each script takes the model/dataset name as `$1` and looks up its own batch
+size, epoch count, etc.; see the header comment in each file for flags and
+per-model overrides (e.g. gated models need `HF_TOKEN`, large FMs want
+`sbatch --partition=a100_short --mem=128G`). Training scripts skip any
+seed/dataset combination that already has a checkpoint, so they're safe to
+resubmit for partial reruns.
 
 ---
 
@@ -176,8 +178,8 @@ histology-tta/
 ├── models/            # Model factory: FM backbones, general-purpose, D4WRN
 ├── tta/               # TTA augmentations + aggregation strategies
 ├── utils/             # Plotting scripts, table generation, trainer, metrics
-├── scripts/           # SLURM job scripts
-├── analysis_*.py      # Post-hoc analyses (orbit geometry, flip discrimination, etc.)
+├── scripts/           # SLURM job scripts (parameterized: model/dataset is $1)
+├── analysis/          # Post-hoc analyses + result compilation (orbit geometry, flip discrimination, etc.)
 ├── paper/             # LaTeX source + figures/tables for submission
 │   └── latex/
 │       ├── figures/   # figure2.pdf, figure3_journal.pdf, figure4_selective_pareto.pdf
@@ -185,6 +187,5 @@ histology-tta/
 ├── train.py           # End-to-end training (general-purpose + finetuned)
 ├── train_probe.py     # Probe training on cached embeddings
 ├── extract_embeddings.py
-├── evaluate_tta.py
-└── compile_results.py
+└── evaluate_tta.py
 ```
