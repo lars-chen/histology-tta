@@ -1,7 +1,7 @@
 """
 Extract and cache backbone embeddings for all datasets.
 
-Saves to /gpfs/scratch/lpc8816/histology_embeddings/{model}/{dataset}/{split}/
+Saves to $HISTO_EMB_DIR/{model}/{dataset}/{split}/
   embeddings.npy  — float32, shape (N, D) for train, (N, 8, D) for test
   labels.npy      — int64,   shape (N,)
 
@@ -24,7 +24,7 @@ from models import get_model
 from data.data import HistoDataset, MHISTDataset
 from data.transforms import get_tta_transforms
 
-OUT_BASE = Path("/gpfs/scratch/lpc8816/histology_embeddings")
+OUT_BASE = Path(os.environ.get("HISTO_EMB_DIR", "embeddings"))
 
 BATCH_FOR = {
     "gigapath": 128, "hoptimus": 128,  # ViT-g, 80GB A100: mega-batch=1024

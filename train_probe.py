@@ -24,7 +24,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import balanced_accuracy_score, accuracy_score, f1_score
 from sklearn.model_selection import StratifiedKFold
 
-EMB_BASE = Path("/gpfs/scratch/lpc8816/histology_embeddings")
+EMB_BASE = Path(os.environ.get("HISTO_EMB_DIR", "embeddings"))
 CKPT_BASE = Path("checkpoints/frozen")
 OUT_DIR   = Path("results/raw")
 

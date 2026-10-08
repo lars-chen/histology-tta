@@ -2,7 +2,7 @@
 Compute orbit tightness metrics directly from cached embeddings.
 
 Embeddings are pre-extracted to:
-  /gpfs/scratch/lpc8816/histology_embeddings/{model}/{dataset}/test/embeddings.npy
+  $HISTO_EMB_DIR/{model}/{dataset}/test/embeddings.npy
   shape: (N, 8, D) — all 8 D4 views
 
 Metrics computed per (model, dataset):
@@ -19,6 +19,7 @@ Usage:
   python analysis_orbit_from_embeddings.py --per_class     # include per-class OCN in output
 """
 
+import os
 import argparse
 import gc
 import json
@@ -27,7 +28,7 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 
-SCRATCH = Path("/gpfs/scratch/lpc8816/histology_embeddings")
+SCRATCH = Path(os.environ.get("HISTO_EMB_DIR", "embeddings"))
 OUT_CSV = Path("results/orbit_tightness_v2.csv")
 
 FM_MODELS = {

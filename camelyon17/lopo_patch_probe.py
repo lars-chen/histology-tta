@@ -19,6 +19,7 @@ Usage:
   python -m camelyon17.lopo_patch_probe --model uni phikon2 virchow2 gigapath ...
 """
 from __future__ import annotations
+import os
 
 import argparse
 import random
@@ -33,8 +34,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from camelyon17.annot_utils import parse_lesion_polygons, patch_labels
 
-_ANNOT_DIR = Path("/gpfs/data/oermannlab/public_data/camelyon17/training/lesion_annotations")
-_DATA_ROOT = Path("/gpfs/data/mankowskilab/chen/camelyon17_patched")
+_ANNOT_DIR = Path(os.path.join(os.environ.get("CAMELYON17_DIR", "data/camelyon17"), "training/lesion_annotations"))
+_DATA_ROOT = Path(os.environ.get("CAMELYON17_PATCHED_DIR", "data/camelyon17_patched"))
 _PATCH_LV0 = 512
 _MPP       = 0.243   # µm / pixel at level 0
 

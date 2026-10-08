@@ -11,6 +11,7 @@ mapped from level-0 space to that resolution.
 """
 
 from __future__ import annotations
+import os
 
 from pathlib import Path
 
@@ -18,7 +19,7 @@ import numpy as np
 import openslide
 
 _CANCER_VALUES = {3, 4, 5}
-_MASK_DIR = Path("/gpfs/scratch/lpc8816/panda/train_label_masks")
+_MASK_DIR = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "train_label_masks"))
 
 
 def patch_labels(

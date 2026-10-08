@@ -24,6 +24,7 @@ Usage:
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 import math
@@ -41,8 +42,8 @@ from PIL import Image
 
 from camelyon17.annot_utils import parse_lesion_polygons, patch_labels
 
-_ANNOT_DIR   = Path("/gpfs/data/oermannlab/public_data/camelyon17/training/lesion_annotations")
-_DATA_ROOT   = Path("/gpfs/data/mankowskilab/chen/camelyon17_patched")
+_ANNOT_DIR   = Path(os.path.join(os.environ.get("CAMELYON17_DIR", "data/camelyon17"), "training/lesion_annotations"))
+_DATA_ROOT   = Path(os.environ.get("CAMELYON17_PATCHED_DIR", "data/camelyon17_patched"))
 _FEAT_ROOT   = Path("camelyon17_features/uni/d4_all")
 _CKPT        = Path("checkpoints/camelyon17/patch_probe_uni_seed42/best.pt")
 

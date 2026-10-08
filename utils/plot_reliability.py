@@ -86,6 +86,7 @@ axes[0].set_ylabel("accuracy")
 leg = axes[0].legend(loc="upper left", fontsize=8, framealpha=0.9)
 leg.get_frame().set_edgecolor(BORDER)
 fig.tight_layout()
+os.makedirs("paper/latex/figures", exist_ok=True)
 for ext in ("png", "pdf"):
     fig.savefig(f"paper/latex/figures/reliability_tcga.{ext}", dpi=170,
                 bbox_inches="tight", facecolor="white")

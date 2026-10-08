@@ -12,6 +12,7 @@ Output: results/v4_flips_results.csv with one row per (model, dataset, seed)
 for strategy `flips` (mean aggregation), plus recomputed `none` / `d4` columns
 for a reproduction sanity-check against canonical_results.csv.
 """
+import os
 import numpy as np
 import pandas as pd
 import torch
@@ -19,7 +20,7 @@ import torch.nn as nn
 from pathlib import Path
 from sklearn.metrics import balanced_accuracy_score, accuracy_score, f1_score
 
-EMB_BASE  = Path("/gpfs/scratch/lpc8816/histology_embeddings")
+EMB_BASE  = Path(os.environ.get("HISTO_EMB_DIR", "embeddings"))
 CKPT_BASE = Path("checkpoints/frozen")
 OUT_CSV   = Path("results/v4_flips_results.csv")
 

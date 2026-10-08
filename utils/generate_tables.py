@@ -292,5 +292,6 @@ def generate_head_comparison_table(out_path: Path) -> None:
 
 
 if __name__ == "__main__":
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     generate_full_results_table(OUT_DIR / "table_full_results.tex")
     generate_head_comparison_table(OUT_DIR / "table_head_comparison.tex")
