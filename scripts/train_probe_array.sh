@@ -1,19 +1,18 @@
 #!/bin/bash
 #SBATCH --job-name=train_probe
-#SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/train_probe_%A_%a.out
-#SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/train_probe_%A_%a.err
-#SBATCH --partition=cpu_short
+#SBATCH --output=logs/train_probe_%A_%a.out
+#SBATCH --error=logs/train_probe_%A_%a.err
+#SBATCH --partition=<cpu_partition>
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=10:00:00
 #SBATCH --array=0-299
 
-PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
+PROJECT=${PROJECT:-$SLURM_SUBMIT_DIR}   # submit from the repository root
 PYTHON=$PROJECT/.venv/bin/python
 
-export TORCH_HOME=/gpfs/scratch/lpc8816/.cache/torch
-export HF_HOME=/gpfs/scratch/lpc8816/.cache/huggingface
-export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+export TORCH_HOME=${TORCH_HOME:-$HOME/.cache/torch}
+export HF_HOME=${HF_HOME:-$HOME/.cache/huggingface}
 source ~/.bashrc 2>/dev/null || true
 
 cd "$PROJECT" || exit 1

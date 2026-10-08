@@ -23,13 +23,13 @@ RES    = Path("results")
 N_BINS = 10
 
 
-def ece(probs_max: np.ndarray, correct: np.ndarray, n_bins: int = 15) -> float:
+def ece(probs_max: np.ndarray, correct: np.ndarray, n_bins: int = N_BINS) -> float:
     """Expected Calibration Error from confidence and correctness arrays."""
     bins = np.linspace(0, 1, n_bins + 1)
     ece_val = 0.0
     N = len(probs_max)
     for lo, hi in zip(bins[:-1], bins[1:]):
-        mask = (probs_max >= lo) & (probs_max < hi)
+        mask = (probs_max >= lo) & ((probs_max < hi) | (hi == 1.0))  # last bin includes 1.0
         if mask.sum() == 0:
             continue
         acc_bin = correct[mask].mean()
@@ -90,7 +90,7 @@ def main():
             y_true   = sdf["true_label"].values
 
             for b_idx, (lo, hi) in enumerate(zip(bins[:-1], bins[1:])):
-                mask = (ent >= lo) & (ent < hi)
+                mask = (ent >= lo) & ((ent < hi) | (hi == bins[-1]))  # last bin includes right edge
                 if mask.sum() == 0:
                     continue
                 agg_rows.append({

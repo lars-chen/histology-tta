@@ -43,14 +43,39 @@ __pycache__
 /data/mhist
 
 /embeddings
-/results
+# Results: only the main compiled results
+/results/*
+!/results/canonical_results.csv
+!/results/selective_tta_results.csv
+!/results/wsl_results.csv
+
+# Paper figures: only the three main-text result figures
 
 convert_checkpoints.py
 
 camelyon17_features/
 panda_features/
-/camelyon17/
-/panda/
 
 # Figures
 /figures/
+
+# Manuscript, figures and response letter (source lives on Overleaf)
+/paper/
+
+# Exploratory analysis not used in the paper
+/camelyon17/new_slides.txt
+/camelyon17/aggregate_patch_stats.py
+/camelyon17/boundary_distance_analysis.py
+/camelyon17/calibration_test.py
+/camelyon17/ga_variance_heatmap.py
+/camelyon17/multimodel_spatial.py
+/camelyon17/spatial_smoothing_test.py
+/camelyon17/visualize_tta_attention.py
+/camelyon17/wsi_embedding_variance.py
+/panda/scan_patch_stats.py
+/panda/train_grade_probe.py
+
+# Scripts: keep two example sweeps only
+/scripts/*
+!/scripts/train_probe_array.sh
+!/scripts/train_ft.sh

@@ -182,6 +182,7 @@ def summarize(res, model, dataset, seed):
         "flip_rate": float(flip.mean()),
         "n_corrected": int(res["corrected"].sum()),
         "n_corrupted": int(res["corrupted"].sum()),
+        "frac_straddle": float((np.abs(res["straddle"]) < 1).mean()),
     }
     for name, score in preds.items():
         row[f"auroc_flip__{name}"] = _safe_auroc(score, flip)
