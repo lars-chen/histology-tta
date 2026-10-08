@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=histo_ft
-#SBATCH --output=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.out
-#SBATCH --error=/gpfs/data/mankowskilab/chen/histology-tta/logs/%x_%j.err
-#SBATCH --partition=gpu4_medium
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+#SBATCH --partition=<gpu_partition>
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=128G
@@ -15,7 +15,7 @@
 # Usage: sbatch scripts/train_ft.sh <model> [--scratch] [--noaug] \
 #            [--seeds "0 1 2 3 42"] [--datasets "tcga-ut nct-crc-100k ..."]
 #
-# d4wrn wants `sbatch --partition=a100_short --gres=gpu:a100:1 --mem=128G`.
+# d4wrn wants an A100-class GPU and 128G memory.
 # ---------------------------------------------------------------------------
 
 set -euo pipefail
@@ -36,22 +36,24 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-PROJECT=/gpfs/data/mankowskilab/chen/histology-tta
+PROJECT=${PROJECT:-$SLURM_SUBMIT_DIR}   # submit from the repository root
 PYTHON=$PROJECT/.venv/bin/python
 CKPT_DIR=$PROJECT/checkpoints
 LOG_DIR=$PROJECT/logs
-CACHE_DIR=${HF_CACHE_DIR:-/gpfs/scratch/lpc8816/.cache/huggingface}
+CACHE_DIR=${HF_CACHE_DIR:-$HOME/.cache/huggingface}
 
-# Per-model defaults: batch, eval_batch, epochs, workers, patience, lr.
+# Per-model defaults: batch, eval_batch, epochs, workers, patience, lr (backbone;
+# head uses 10x). Matches the paper: lr 1e-4 (1e-5 for DINOv2), batch 64,
+# up to 30 epochs, patience 5.
 case "$MODEL" in
     resnet18)        BATCH=64 EVAL_BATCH=128 EPOCHS=30 WORKERS=4 PATIENCE=5 LR=1e-4 ;;
     resnet50)        BATCH=64 EVAL_BATCH=128 EPOCHS=30 WORKERS=4 PATIENCE=5 LR=1e-4 ;;
-    convnextv2_tiny) BATCH=64 EVAL_BATCH=32  EPOCHS=30 WORKERS=4 PATIENCE=5 LR=5e-5 ;;
-    convnextv2_base) BATCH=16 EVAL_BATCH=32  EPOCHS=20 WORKERS=2 PATIENCE=2 LR=1e-5 ;;
+    convnextv2_tiny) BATCH=64 EVAL_BATCH=32  EPOCHS=30 WORKERS=4 PATIENCE=5 LR=1e-4 ;;
+    convnextv2_base) BATCH=64 EVAL_BATCH=32  EPOCHS=30 WORKERS=4 PATIENCE=5 LR=1e-4 ;;
     dinov2_s)        BATCH=64 EVAL_BATCH=64  EPOCHS=30 WORKERS=4 PATIENCE=5 LR=1e-5
-                      export TORCH_HOME=/gpfs/scratch/lpc8816/.cache/torch ;;
-    dinov2_b)        BATCH=16 EVAL_BATCH=32  EPOCHS=30 WORKERS=4 PATIENCE=5 LR=1e-5
-                      export TORCH_HOME=/gpfs/scratch/lpc8816/.cache/torch ;;
+                      export TORCH_HOME=${TORCH_HOME:-$HOME/.cache/torch} ;;
+    dinov2_b)        BATCH=64 EVAL_BATCH=32  EPOCHS=30 WORKERS=4 PATIENCE=5 LR=1e-5
+                      export TORCH_HOME=${TORCH_HOME:-$HOME/.cache/torch} ;;
     d4wrn)           BATCH=64 EVAL_BATCH=32  EPOCHS=30 WORKERS=4 PATIENCE=5 LR=1e-3 ;;
     *) echo "No config for model '$MODEL' — add one to scripts/train_ft.sh" >&2; exit 1 ;;
 esac

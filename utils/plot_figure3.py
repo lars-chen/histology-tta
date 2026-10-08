@@ -661,14 +661,33 @@ def _draw_panel_c(ax, df: pd.DataFrame = None, regression: str = "single",
     agg = _build_panel_c_data(df)
     type_handles = []
 
+    # dataset -> (marker, short label, line color) for regression == "dataset"
+    DS_STYLE = {
+        "tcga-ut":         ("o", "TCGA-UT",    "#2d2d2d"),
+        "nct-crc-100k":    ("s", "NCT-CRC",    "#777777"),
+        "nct-crc-nonorm":  ("^", "NCT-NoNorm", "#aaaaaa"),
+    }
+    by_dataset = regression == "dataset"
+    if regression == "tcga":          # primary benchmark only, as in panel (b)
+        agg = agg[agg["dataset"] == "tcga-ut"]
+
     for mtype in ["histology", "general"]:
         sub = agg[agg["model_type"] == mtype]
         if sub.empty:
             continue
         color = CB_PALETTE[mtype]
-        ax.scatter(sub["entropy_mean"], sub["delta_pp_mean"],
-                   s=50, alpha=0.85, color=color, zorder=3,
-                   edgecolors="white", linewidths=0.8)
+        if by_dataset:
+            for ds, (mk, _, _) in DS_STYLE.items():
+                s2 = sub[sub["dataset"] == ds]
+                if s2.empty:
+                    continue
+                ax.scatter(s2["entropy_mean"], s2["delta_pp_mean"], marker=mk,
+                           s=50, alpha=0.85, color=color, zorder=3,
+                           edgecolors="white", linewidths=0.8)
+        else:
+            ax.scatter(sub["entropy_mean"], sub["delta_pp_mean"],
+                       s=50, alpha=0.85, color=color, zorder=3,
+                       edgecolors="white", linewidths=0.8)
         type_handles.append(
             Line2D([0], [0], marker="o", color=color, markerfacecolor=color,
                    markeredgecolor="white", markeredgewidth=0.8,
@@ -678,7 +697,27 @@ def _draw_panel_c(ax, df: pd.DataFrame = None, regression: str = "single",
 
     ax.axhline(0, color="black", linewidth=0.8, linestyle="--", alpha=0.3)
 
-    if regression == "single":
+    if by_dataset:
+        # One fit per dataset: pooling the three attenuates the association,
+        # so the within-dataset fits are the ones the caption reports.
+        # No CI bands here: three overlapping bands wash out the panel. The
+        # rho values ride in the legend, so the fits stay unlabelled inline.
+        for ds, (mk, lab, lc) in DS_STYLE.items():
+            sub = agg[agg["dataset"] == ds]
+            if len(sub) < 3:
+                continue
+            x = sub["entropy_mean"].values
+            y = sub["delta_pp_mean"].values
+            out = _reg_line_ci(x, y, ax, color=lc, linestyle="--",
+                               linewidth=1.4, alpha_band=0.0)
+            rho = out[0] if out else float("nan")
+            type_handles.append(
+                Line2D([0], [0], marker=mk, color=lc, markerfacecolor=lc,
+                       markeredgecolor="white", markeredgewidth=0.8,
+                       markersize=6, linestyle="--", linewidth=1.4,
+                       label=f"{lab}  ρ = {rho:.2f}")
+            )
+    elif regression in ("single", "tcga"):
         out = _reg_line_ci(agg["entropy_mean"].values, agg["delta_pp_mean"].values,
                            ax, color="gray")
         if out:
@@ -708,9 +747,11 @@ def _draw_panel_c(ax, df: pd.DataFrame = None, regression: str = "single",
     ax.set_ylabel("TTA Δ Bal. Accuracy (pp)", fontsize=13)
     ax.xaxis.set_major_locator(plt.MaxNLocator(4))
     ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    ax.text(0.02, 0.02, "TCGA-UT · NCT-CRC · NCT-NoNorm", transform=ax.transAxes,
-            fontsize=9, va="bottom", ha="left", color="#555555",
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7))
+    if not by_dataset:   # in dataset mode the legend already names the datasets
+        _foot = "TCGA-UT" if regression == "tcga" else "TCGA-UT · NCT-CRC · NCT-NoNorm"
+        ax.text(0.02, 0.02, _foot, transform=ax.transAxes,
+                fontsize=9, va="bottom", ha="left", color="#555555",
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7))
     _dim_grid(ax)
 
     return type_handles
@@ -718,7 +759,7 @@ def _draw_panel_c(ax, df: pd.DataFrame = None, regression: str = "single",
 
 def make_panel_c(df: pd.DataFrame, out_dir: Path):
     with plt.rc_context(PUB_RCPARAMS):
-        for version, reg in [("v1", "single"), ("v2", "family")]:
+        for version, reg in [("v1", "single"), ("v2", "family"), ("v3", "dataset"), ("v4", "tcga")]:
             fig, ax = plt.subplots(figsize=(6, 5))
             handles = _draw_panel_c(ax, df, regression=reg)
             ax.legend(handles=handles, fontsize=9, loc="lower right", framealpha=0.85)

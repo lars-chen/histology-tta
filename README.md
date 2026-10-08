@@ -150,23 +150,17 @@ f_sel(x) = f(x)                    if H(f(x)) / ln(C) ≤ t
 
 ## SLURM Scripts
 
-Pre-configured, parameterized scripts in `scripts/`:
+Two example SLURM sweeps are provided in `scripts/`:
 
 ```bash
-sbatch scripts/train_cls.sh phikon2                    # frozen linear probe + TTA eval
-sbatch scripts/train_cls.sh convnextv2_tiny --mlp       # frozen MLP-head probe
-sbatch scripts/train_ft.sh convnextv2_base              # full fine-tune + TTA eval
-sbatch scripts/extract_camelyon17.sh uni                # WSI feature extraction (array job)
-sbatch scripts/save_logits.sh tcga-ut                   # re-run eval, dump raw logits
-sbatch scripts/selective_tta.sh phikon2                 # selective-TTA threshold sweep
+sbatch scripts/train_probe_array.sh                    # frozen-probe sweep: 15 models x 4 datasets x 5 seeds (array job), all heads
+sbatch scripts/train_ft.sh convnextv2_base              # full fine-tune on all datasets and seeds + TTA eval
 ```
 
-Each script takes the model/dataset name as `$1` and looks up its own batch
-size, epoch count, etc.; see the header comment in each file for flags and
-per-model overrides (e.g. gated models need `HF_TOKEN`, large FMs want
-`sbatch --partition=a100_short --mem=128G`). Training scripts skip any
-seed/dataset combination that already has a checkpoint, so they're safe to
-resubmit for partial reruns.
+See the header comment in each file for flags and per-model overrides (e.g.
+gated models need `HF_TOKEN`, large models want more memory). The fine-tuning
+script skips any seed/dataset combination that already has a checkpoint, so it
+is safe to resubmit for partial reruns.
 
 ---
 
@@ -178,7 +172,7 @@ histology-tta/
 ├── models/            # Model factory: FM backbones, general-purpose, D4WRN
 ├── tta/               # TTA augmentations + aggregation strategies
 ├── utils/             # Plotting scripts, table generation, trainer, metrics
-├── scripts/           # SLURM job scripts (parameterized: model/dataset is $1)
+├── scripts/           # Example SLURM sweeps
 ├── analysis/          # Post-hoc analyses + result compilation (orbit geometry, flip discrimination, etc.)
 ├── paper/             # LaTeX source + figures/tables for submission
 │   └── latex/
