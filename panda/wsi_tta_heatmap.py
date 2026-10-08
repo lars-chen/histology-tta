@@ -20,6 +20,7 @@ Usage:
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 import math
@@ -37,9 +38,9 @@ import torch.nn.functional as F
 
 from panda.annot_utils import patch_labels
 
-_TRAIN_CSV   = Path("/gpfs/scratch/lpc8816/panda/train.csv")
-_SLIDES_DIR  = Path("/gpfs/scratch/lpc8816/panda/train_images")
-_PATCHES_DIR = Path("/gpfs/scratch/lpc8816/panda/clam_patches/patches")
+_TRAIN_CSV   = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "train.csv"))
+_SLIDES_DIR  = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "train_images"))
+_PATCHES_DIR = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "clam_patches/patches"))
 _FEAT_ROOT   = Path("panda_features/uni/d4_all")
 _CKPT        = Path("checkpoints/panda/patch_probe_uni_seed42/best.pt")
 

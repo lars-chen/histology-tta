@@ -16,6 +16,7 @@ Usage:
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 from pathlib import Path
@@ -33,7 +34,7 @@ import torch.nn.functional as F
 
 PANDA = dict(
     features_dir = Path("panda_features/uni/d4_all"),
-    patches_dir  = Path("/gpfs/scratch/lpc8816/panda/clam_patches/patches"),
+    patches_dir  = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "clam_patches/patches")),
     checkpoint   = Path("checkpoints/panda/patch_probe_uni_seed42/best.pt"),
     patch_size   = 256,
     embed_dim    = 1024,
@@ -43,9 +44,9 @@ PANDA = dict(
 
 CAMELYON = dict(
     features_dir = Path("camelyon17_features/uni/d4_all"),
-    patches_dir  = Path("/gpfs/data/mankowskilab/chen/camelyon17_patched/patches"),
+    patches_dir  = Path(os.path.join(os.environ.get("CAMELYON17_PATCHED_DIR", "data/camelyon17_patched"), "patches")),
     checkpoint   = Path("checkpoints/camelyon17/patch_probe_uni_seed42/best.pt"),
-    annot_dir    = Path("/gpfs/data/oermannlab/public_data/camelyon17/training/lesion_annotations"),
+    annot_dir    = Path(os.path.join(os.environ.get("CAMELYON17_DIR", "data/camelyon17"), "training/lesion_annotations")),
     patch_size   = 512,
     embed_dim    = 1024,
     n_classes    = 2,

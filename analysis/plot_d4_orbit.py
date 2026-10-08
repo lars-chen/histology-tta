@@ -28,6 +28,7 @@ Usage
         [--out_dir figures/]
 """
 
+import os
 import argparse
 import json
 from collections import Counter
@@ -481,7 +482,7 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--embeddings",
-        default="/gpfs/scratch/lpc8816/histology_embeddings/hoptimus/tcga-ut/test",
+        default=os.path.join(os.environ.get("HISTO_EMB_DIR", "embeddings"), "hoptimus/tcga-ut/test"),
         help="Directory containing embeddings.npy, labels.npy, meta.json",
     )
     p.add_argument(

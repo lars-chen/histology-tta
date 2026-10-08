@@ -15,6 +15,7 @@ Usage:
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 import csv
@@ -29,7 +30,7 @@ from torch.utils.data import DataLoader
 from camelyon17.model_abmil import build_mil_model
 from panda.dataset_mil import PandaSlideDataset, collate_bags, load_labels, make_folds
 
-_TRAIN_CSV   = Path("/gpfs/scratch/lpc8816/panda/train.csv")
+_TRAIN_CSV   = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "train.csv"))
 _RESULTS_CSV = Path("results/panda_tta.csv")
 _N_CLASSES   = 6
 _D4_VIEWS    = 8

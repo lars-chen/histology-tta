@@ -15,6 +15,7 @@ Checkpoints saved to:
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 import csv
@@ -31,7 +32,7 @@ from torch.utils.data import DataLoader
 from camelyon17.dataset_mil import CamelyonSlideDataset, collate_bags, make_splits
 from camelyon17.model_abmil import build_mil_model
 
-_DATA_ROOT = Path("/gpfs/data/mankowskilab/chen/camelyon17_patched")
+_DATA_ROOT = Path(os.environ.get("CAMELYON17_PATCHED_DIR", "data/camelyon17_patched"))
 _FEATURE_DIMS = {
     "phikon": 768, "phikon2": 1024, "uni": 1024,
     "virchow2": 1280, "gigapath": 1536,

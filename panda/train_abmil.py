@@ -2,7 +2,7 @@
 Train MIL model on pre-extracted PANDA features (ISUP grade 0-5).
 
 Features: panda_features/uni/d4_all/<slide_id>.pt  (N, 8, 1024)
-Labels:   /gpfs/scratch/lpc8816/panda/train.csv    (isup_grade 0-5)
+Labels:   $PANDA_DIR/train.csv    (isup_grade 0-5)
 
 Split: stratified 5-fold CV. Each run trains on 4 folds, validates on 1.
 
@@ -15,6 +15,7 @@ Usage:
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 import csv
@@ -31,7 +32,7 @@ from torch.utils.data import DataLoader
 from camelyon17.model_abmil import build_mil_model
 from panda.dataset_mil import PandaSlideDataset, collate_bags, load_labels, make_folds
 
-_TRAIN_CSV   = Path("/gpfs/scratch/lpc8816/panda/train.csv")
+_TRAIN_CSV   = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "train.csv"))
 _FEAT_ROOT   = Path("panda_features")
 _CKPT_ROOT   = Path("checkpoints/panda")
 _RESULTS_CSV = Path("results/panda_tta.csv")

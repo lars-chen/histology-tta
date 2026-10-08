@@ -13,6 +13,7 @@ Usage:
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 import random
@@ -28,8 +29,8 @@ from torch.utils.data import DataLoader, TensorDataset, WeightedRandomSampler
 
 from panda.annot_utils import patch_labels
 
-_TRAIN_CSV  = Path("/gpfs/scratch/lpc8816/panda/train.csv")
-_PATCHES_DIR = Path("/gpfs/scratch/lpc8816/panda/clam_patches/patches")
+_TRAIN_CSV  = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "train.csv"))
+_PATCHES_DIR = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "clam_patches/patches"))
 _FEAT_ROOT  = Path("panda_features")
 _CKPT_ROOT  = Path("checkpoints/panda")
 

@@ -12,13 +12,14 @@ and the standalone "money panel" (c) for review before deciding inclusion.
     [orbit_tightness_v2.csv + orbit_tightness_d4wrn_*.csv + embeddings/W + d4wrn JSON]
 """
 from __future__ import annotations
+import os
 import glob, json
 from pathlib import Path
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np, pandas as pd, torch
 
-EMB = Path("/gpfs/scratch/lpc8816/histology_embeddings")
+EMB = Path(os.environ.get("HISTO_EMB_DIR", "embeddings"))
 CKPT = Path("checkpoints/frozen")
 FM = {"phikon","phikon2","uni","uni2","virchow","virchow2","gigapath","hoptimus","ctranspath"}
 DS3 = ["tcga-ut","nct-crc-100k","nct-crc-nonorm"]

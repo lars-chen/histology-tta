@@ -14,6 +14,7 @@ Output: results/selective_gating_summary.csv
         figures/selective_gating_pareto.png
 """
 from __future__ import annotations
+import os
 import argparse, gc
 from pathlib import Path
 import matplotlib; matplotlib.use("Agg")
@@ -21,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np, pandas as pd, torch
 from sklearn.metrics import balanced_accuracy_score
 
-EMB_BASE = Path("/gpfs/scratch/lpc8816/histology_embeddings")
+EMB_BASE = Path(os.environ.get("HISTO_EMB_DIR", "embeddings"))
 CKPT_BASE = Path("checkpoints/frozen")
 FM = {"phikon","phikon2","uni","uni2","virchow","virchow2","gigapath","hoptimus","ctranspath"}
 MODELS = ["phikon","phikon2","uni","uni2","virchow","virchow2","gigapath","hoptimus","ctranspath",

@@ -30,6 +30,7 @@ Usage (SLURM array, 8 GPUs):
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 import json
@@ -267,11 +268,11 @@ def extract_slide(
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--patches_dir",  type=Path,
-                   default=Path("/gpfs/data/mankowskilab/chen/camelyon17_patched/patches"))
+                   default=Path(os.path.join(os.environ.get("CAMELYON17_PATCHED_DIR", "data/camelyon17_patched"), "patches")))
     p.add_argument("--slides_dir",   type=Path,
-                   default=Path("/gpfs/data/mankowskilab/chen/camelyon17_patched/slides_symlinks"))
+                   default=Path(os.path.join(os.environ.get("CAMELYON17_PATCHED_DIR", "data/camelyon17_patched"), "slides_symlinks")))
     p.add_argument("--out_dir",      type=Path,
-                   default=Path("/gpfs/data/mankowskilab/chen/histology-tta/camelyon17_features"))
+                   default=Path("camelyon17_features"))
     p.add_argument("--model",        type=str, default="uni",
                    choices=list(_MODEL_REGISTRY))
     p.add_argument("--tta_modes",    nargs="+", default=["none", "d4_all"],

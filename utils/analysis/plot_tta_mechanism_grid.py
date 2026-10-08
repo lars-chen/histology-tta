@@ -8,12 +8,13 @@ variance corner — and that this "hot corner" shrinks as the backbone gets stro
 (fewer uncertain, view-unstable samples).
 """
 from __future__ import annotations
+import os
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-EMB_ROOT = Path("/gpfs/scratch/lpc8816/histology_embeddings")
+EMB_ROOT = Path(os.environ.get("HISTO_EMB_DIR", "embeddings"))
 DATASET, SEED = "tcga-ut", 0
 MODELS = ["resnet18", "dinov2_s", "convnextv2_base", "ctranspath", "uni", "hoptimus"]
 NBIN = 5

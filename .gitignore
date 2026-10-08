@@ -41,6 +41,9 @@ Thumbs.db
 __pycache__
 
 /data/mhist
+/data/panda
+/data/camelyon17
+/data/camelyon17_patched
 
 /embeddings
 # Results: only the main compiled results
@@ -48,8 +51,6 @@ __pycache__
 !/results/canonical_results.csv
 !/results/selective_tta_results.csv
 !/results/wsl_results.csv
-
-# Paper figures: only the three main-text result figures
 
 convert_checkpoints.py
 
@@ -79,3 +80,6 @@ panda_features/
 /scripts/*
 !/scripts/train_probe_array.sh
 !/scripts/train_ft.sh
+
+# Personal notes
+/TODO.md

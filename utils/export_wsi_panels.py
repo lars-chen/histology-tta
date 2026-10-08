@@ -34,9 +34,9 @@ from PIL import Image
 from scipy.ndimage import gaussian_filter, label as nd_label
 
 # ── Paths (mirror wsi_tta_heatmap.py) ────────────────────────────────────────
-_ANNOT_DIR   = Path("/gpfs/data/oermannlab/public_data/camelyon17/training/lesion_annotations")
-_PATCHES_DIR = Path("/gpfs/data/mankowskilab/chen/camelyon17_patched/patches")
-_SLIDES_DIR  = Path("/gpfs/data/mankowskilab/chen/camelyon17_patched/slides_symlinks")
+_ANNOT_DIR   = Path(os.path.join(os.environ.get("CAMELYON17_DIR", "data/camelyon17"), "training/lesion_annotations"))
+_PATCHES_DIR = Path(os.path.join(os.environ.get("CAMELYON17_PATCHED_DIR", "data/camelyon17_patched"), "patches"))
+_SLIDES_DIR  = Path(os.path.join(os.environ.get("CAMELYON17_PATCHED_DIR", "data/camelyon17_patched"), "slides_symlinks"))
 # Backbone to render, e.g. uni / convnextv2 / gigapath (set via PANEL_MODEL env var).
 _MODEL       = os.environ.get("PANEL_MODEL", "uni")
 _FEAT_DIR    = Path(f"camelyon17_features/{_MODEL}/d4_all")

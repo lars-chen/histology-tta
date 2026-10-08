@@ -31,6 +31,7 @@ Outputs:
 """
 
 from __future__ import annotations
+import os
 
 import argparse
 import gc
@@ -44,7 +45,7 @@ import pandas as pd
 import torch
 from sklearn.metrics import roc_auc_score
 
-EMB_BASE  = Path("/gpfs/scratch/lpc8816/histology_embeddings")
+EMB_BASE  = Path(os.environ.get("HISTO_EMB_DIR", "embeddings"))
 CKPT_BASE = Path("checkpoints/frozen")
 OUT_DIR   = Path("results")
 

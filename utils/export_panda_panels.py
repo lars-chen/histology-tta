@@ -15,6 +15,7 @@ Outputs in figures/panels/:
   panda_{slide_id[:8]}_outcome.pdf  / .png
 """
 from __future__ import annotations
+import os
 import math
 import sys
 from pathlib import Path
@@ -32,8 +33,8 @@ import torch.nn.functional as F
 
 from panda.annot_utils import patch_labels
 
-_SLIDES_DIR  = Path("/gpfs/scratch/lpc8816/panda/train_images")
-_PATCHES_DIR = Path("/gpfs/scratch/lpc8816/panda/clam_patches/patches")
+_SLIDES_DIR  = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "train_images"))
+_PATCHES_DIR = Path(os.path.join(os.environ.get("PANDA_DIR", "data/panda"), "clam_patches/patches"))
 _FEAT_DIR    = Path("panda_features/uni/d4_all")
 _CKPT        = Path("checkpoints/panda/patch_probe_uni_seed42/best.pt")
 _OUT_DIR     = Path("figures/panels")
