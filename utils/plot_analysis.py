@@ -71,11 +71,11 @@ FM_META = {
     # month encoded as year + (month-1)/12 for fractional year plotting
     "ctranspath": {"params_m": 28,   "pretrain_tiles_m": 15,   "year_frac": 2021 + 11/12},
     "phikon":     {"params_m": 86,   "pretrain_tiles_m": 40,   "year_frac": 2023 +  6/12},
-    "virchow":    {"params_m": 632,  "pretrain_tiles_m": 1500, "year_frac": 2023 +  8/12},
+    "virchow":    {"params_m": 632,  "pretrain_tiles_m": 2000, "year_frac": 2023 +  8/12},
     "uni":        {"params_m": 300,  "pretrain_tiles_m": 100,  "year_frac": 2024 +  2/12},
-    "gigapath":   {"params_m": 1100, "pretrain_tiles_m": 1300, "year_frac": 2024 +  4/12},
+    "gigapath":   {"params_m": 1100, "pretrain_tiles_m": 1400, "year_frac": 2024 +  4/12},
     "hoptimus":   {"params_m": 1100, "pretrain_tiles_m": 1000, "year_frac": 2025 +  2/12},
-    "virchow2":   {"params_m": 632,  "pretrain_tiles_m": 3100, "year_frac": 2024 +  7/12},
+    "virchow2":   {"params_m": 632,  "pretrain_tiles_m": 2000, "year_frac": 2024 +  7/12},
     "phikon2":    {"params_m": 300,  "pretrain_tiles_m": 456,  "year_frac": 2024 +  8/12},
     "uni2":       {"params_m": 681,  "pretrain_tiles_m": 200,  "year_frac": 2025 +  0/12},
 }
